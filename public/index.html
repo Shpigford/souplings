@@ -43,7 +43,6 @@
   </div>
 
   <button id="evolveBtn">Evolve <kbd>E</kbd></button>
-  <button id="dashBtn" aria-label="dash">dash</button>
 
   <div id="toasts"></div>
   <div id="hint">move · mouse or arrows&ensp;&ensp;dash · click / space&ensp;&ensp;evolve · E&ensp;&ensp;mute · M</div>
@@ -58,7 +57,7 @@
 
     <div class="nameRow">
       <label for="nameInput" class="mono">specimen</label>
-      <input id="nameInput" type="text" maxlength="28" spellcheck="false" autocomplete="off">
+      <input id="nameInput" type="text" readonly title="click to roll a new name" aria-label="species name — click to randomize">
       <button id="rerollBtn" title="new name" aria-label="randomize name">⚄</button>
     </div>
 
@@ -66,6 +65,21 @@
     <p id="connStatus" class="mono connStatus">connecting to the soup…</p>
     <p id="controlsNote" class="controlsNote mono">mouse or arrows to swim · click or space to dash · E to evolve</p>
     <div id="chronicle" class="mono hidden"></div>
+    <button id="aboutBtn" class="mono aboutLink">about &amp; credits</button>
+  </div>
+</div>
+
+<!-- ======================= ABOUT ======================= -->
+<div id="about" class="screen hidden">
+  <div class="aboutCard card">
+    <h2>S<span class="tilt">O</span>UPLINGS</h2>
+    <p>A multiplayer tide-pool evolution game. Begin as a speck; eat, evolve
+       through five generations, and crawl ashore. The soup is shared —
+       every creature marked with a <span class="mint">◆</span> is a real person.
+       Each emergence adds a <span class="gold">★</span> to your dynasty.</p>
+    <p class="mono dim">created by Josh Pigford ·
+      <a href="https://x.com/Shpigford" target="_blank" rel="noopener">@Shpigford</a> on X</p>
+    <button id="aboutCloseBtn">Back to the soup</button>
   </div>
 </div>
 
@@ -111,6 +125,7 @@
     <p class="overline">a first breath of air</p>
     <h1 class="endTitle gold">EMERGENCE</h1>
     <p class="tagline">Your line drags itself from the water,<br>blinking at an enormous sky.</p>
+    <p class="endExplain mono">you won this run — five generations survived.<br>return as a new speck to grow your dynasty <span class="gold">★</span></p>
     <p id="winStats" class="endStats mono"></p>
     <div class="endBtns">
       <button id="winRestartBtn">Return as a new speck</button>

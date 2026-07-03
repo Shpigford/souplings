@@ -20,7 +20,7 @@ const Net = {
 
   /* handlers assigned by game.js */
   onWelcome: null, onJoined: null, onDead: null,
-  onAshore: null, onBuyok: null, onStatus: null,
+  onAshore: null, onBuyok: null, onStatus: null, onHint: null,
 
   url(){
     return (location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host + '/ws';
@@ -99,6 +99,9 @@ const Net = {
       case 'buyok':
         this.me.dna = m.dna;
         this.onBuyok && this.onBuyok(m);
+        break;
+      case 'hint':
+        this.onHint && this.onHint(m);
         break;
     }
   },

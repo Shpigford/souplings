@@ -27,9 +27,11 @@ html,body{
   font-family:var(--font-disp);
 }
 
+/* iOS Safari: 100vh includes the space behind the collapsing toolbar.
+   dvh tracks the *visible* viewport, so the UI never hides behind it. */
 #game{
   position:fixed; inset:0;
-  width:100vw; height:100vh;
+  width:100vw; height:100vh; height:100dvh;
   cursor:crosshair;
   z-index:0;
   touch-action:none;
@@ -97,7 +99,8 @@ button kbd{ border-color:rgba(4,18,29,.4); color:inherit; }
 /* ============ fullscreen overlays ============ */
 
 .screen{
-  position:fixed; inset:0;
+  position:fixed; top:0; left:0; right:0;
+  height:100vh; height:100dvh;
   z-index:3;
   display:flex; align-items:center; justify-content:center;
   background:radial-gradient(120% 100% at 50% 10%, rgba(4,18,29,.30), rgba(4,18,29,.78));
@@ -203,7 +206,11 @@ button:disabled:hover{ transform:none; box-shadow:none; }
 
 /* ============ HUD ============ */
 
-#hud{ position:fixed; inset:0; z-index:2; pointer-events:none; }
+#hud{
+  position:fixed; top:0; left:0; right:0;
+  height:100vh; height:100dvh;
+  z-index:2; pointer-events:none;
+}
 #hud button{ pointer-events:auto; }
 
 #specimen{
@@ -300,7 +307,8 @@ button:disabled:hover{ transform:none; box-shadow:none; }
 
 #evolveBtn{
   position:absolute;
-  bottom:1.6rem; left:50%;
+  bottom:calc(1.6rem + env(safe-area-inset-bottom, 0px));
+  left:50%;
   transform:translateX(-50%);
   font-size:1.05rem;
 }
@@ -475,6 +483,53 @@ button:disabled:hover{ transform:none; box-shadow:none; }
   animation:riseIn .7s .3s ease both;
 }
 
+.endExplain{
+  margin-top:1.2rem;
+  color:var(--mint);
+  opacity:.85;
+  line-height:1.9;
+  animation:riseIn .7s .35s ease both;
+}
+.gold{ color:var(--gold); }
+.mint{ color:var(--mint); }
+
+/* ============ about ============ */
+
+.aboutLink{
+  margin-top:1.6rem;
+  background:transparent;
+  color:var(--mint-dim);
+  border:none;
+  font-size:.66rem;
+  letter-spacing:.2em;
+  text-transform:uppercase;
+  padding:.4em .8em;
+  animation:riseIn .7s .9s ease both;
+}
+.aboutLink:hover{ color:var(--mint); box-shadow:none; transform:none; }
+
+.aboutCard{
+  max-width:520px;
+  padding:2.2rem 2.4rem;
+  text-align:center;
+  animation:chamberIn .45s cubic-bezier(.3,1.5,.5,1) both;
+}
+.aboutCard h2{
+  font-style:italic;
+  font-weight:900;
+  font-size:2.2rem;
+  margin-bottom:1rem;
+  text-shadow:0 0 30px rgba(125,255,212,.3);
+}
+.aboutCard h2 .tilt{ display:inline-block; transform:rotate(8deg); color:var(--mint); }
+.aboutCard p{
+  font-weight:300;
+  line-height:1.7;
+  margin-bottom:1.1rem;
+}
+.aboutCard a{ color:var(--mint); }
+.aboutCard button{ margin-top:.6rem; }
+
 /* ============ the chronicle ============ */
 
 #chronicle{
@@ -495,27 +550,6 @@ button:disabled:hover{ transform:none; box-shadow:none; }
 }
 #chronicle .rec{ color:var(--gold); opacity:.85; }
 
-/* ============ touch controls ============ */
-
-#dashBtn{
-  display:none;
-  position:absolute;
-  bottom:1.6rem; right:1.4rem;
-  width:74px; height:74px;
-  border-radius:50%;
-  font-style:italic;
-  font-size:1.05rem;
-  background:rgba(125,255,212,.14);
-  color:var(--mint);
-  border:1.5px solid var(--card-edge);
-  backdrop-filter:blur(6px);
-}
-#dashBtn:active{ background:rgba(125,255,212,.4); transform:scale(.94); }
-@media (pointer:coarse){
-  #dashBtn{ display:block; }
-}
-body.touchy #dashBtn{ display:block; }
-
 /* ============ small screens ============ */
 
 @media (max-width:760px){
@@ -531,7 +565,7 @@ body.touchy #dashBtn{ display:block; }
   #dnaBox{ padding:.5rem .8rem; }
   #dnaCount{ font-size:1rem; }
   #board{ display:none; }
-  #evolveBtn{ bottom:1.4rem; left:1.2rem; transform:none; font-size:.95rem; }
+  #evolveBtn{ bottom:calc(1.4rem + env(safe-area-inset-bottom, 0px)); left:1.2rem; transform:none; font-size:.95rem; }
   #evolveBtn:hover{ transform:none; }
   #evolveBtn kbd{ display:none; }
   #toasts{ top:8.4rem; left:0; right:0; transform:none; padding:0 1rem; }

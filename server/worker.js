@@ -6,7 +6,7 @@
 
 import {
   Cell, World, PARTS, PART_KEYS, FOOD_TYPES,
-  randomGenome, partCost, randomSpeciesName, growthNeedFor,
+  randomGenome, partCost, randomSpeciesName, isValidSpeciesName, growthNeedFor,
   rand, randInt, pick, clamp, dist, TAU
 } from './sim.gen.mjs';
 
@@ -191,7 +191,14 @@ export class Soup {
     const armed = att.stats.dmg - 3;
     const bulk = att.r > def.r * 1.15 ? 2 + att.r * 0.05 : 0;
     const dmg = armed + bulk;
-    if (dmg <= 0) return;
+    if (dmg <= 0){
+      /* a player harmlessly bonking something deserves an explanation, once in a while */
+      if (att.isPlayer && att.client && Date.now() - (att.client.lastBumpHint || 0) > 20000){
+        att.client.lastBumpHint = Date.now();
+        this.send(att.client, { t: 'hint', msg: 'ramming does nothing without Spines or a Jaw — press E to evolve' });
+      }
+      return;
+    }
     if (!att.isPlayer && !att.genome.aggro && !bulk) return;
     att.attackCd = 0.55;
     att.biteT = 0.25;
@@ -297,7 +304,8 @@ export class Soup {
         cl.editorOpen = !!m.open;
         break;
       case 'join': {
-        const name = sanitizeName(m.name);
+        /* only generator-grammar names are accepted — no typed names, no moderation problem */
+        const name = isValidSpeciesName(m.name) ? m.name : randomSpeciesName();
         this.freshRun(cl, name);
         this.events.push({ e: 'join', name });
         this.stats.joins++;
@@ -570,7 +578,3 @@ function partsStr(parts){
   return s;
 }
 
-function sanitizeName(raw){
-  const s = String(raw || '').replace(/[^\x20-\x7E]/g, '').trim().slice(0, 28);
-  return s || randomSpeciesName();
-}

@@ -19,7 +19,7 @@ const ui = {
   resumeBtn: $('resumeBtn'), deathStats: $('deathStats'), winStats: $('winStats'),
   continueBtn: $('continueBtn'), restartBtn: $('restartBtn'), winRestartBtn: $('winRestartBtn'),
   board: $('board'), boardList: $('boardList'), connStatus: $('connStatus'),
-  chronicle: $('chronicle'), deathBy: $('deathBy'), dashBtn: $('dashBtn'),
+  chronicle: $('chronicle'), deathBy: $('deathBy'),
   shareDeathBtn: $('shareDeathBtn'), shareWinBtn: $('shareWinBtn'), controlsNote: $('controlsNote'),
   editorSafety: $('editorSafety')
 };
@@ -58,6 +58,7 @@ function resize(){
   canvas.height = Math.floor(H * DPR);
 }
 window.addEventListener('resize', resize);
+if (window.visualViewport) window.visualViewport.addEventListener('resize', resize);
 resize();
 
 Net.onWelcome = () => {
@@ -119,6 +120,8 @@ Net.onStatus = state => {
   Game.connState = state;
   updateConnStatus();
 };
+
+Net.onHint = m => toast(m.msg, false);
 
 function updateConnStatus(){
   if (!ui.connStatus) return;
@@ -204,8 +207,7 @@ window.addEventListener('pointermove', e => {
 });
 window.addEventListener('pointerdown', e => {
   /* runtime touch detection — belt for devices the media query misses */
-  if (e.pointerType !== 'mouse' && !document.body.classList.contains('touchy')){
-    document.body.classList.add('touchy');
+  if (e.pointerType !== 'mouse'){
     ui.hint.textContent = 'hold to swim · double-tap to dash';
   }
 }, { capture: true });
@@ -257,6 +259,7 @@ window.addEventListener('keydown', e => {
     else if (Game.state === 'editor') closeEditor();
   } else if (e.key === 'Escape'){
     if (Game.state === 'editor') closeEditor();
+    $('about').classList.add('hidden');
   } else if (e.key === 'm' || e.key === 'M'){
     if (AudioSys.ctx) toast(AudioSys.toggleMute() ? 'sound off' : 'sound on', false);
   } else if (e.key === 'Enter' && Game.state === 'title'){
@@ -526,6 +529,7 @@ function processEvents(){
           AudioSys.molt();
           Game.shake = 10;
           toast(`Generation ${ROMAN[ev.gen - 1]} — ${GEN_TITLES[ev.gen - 1]}`, true);
+          if (ev.gen === 5) toast('final generation — fill the bar once more to leave the water', true);
         }
         break;
       }
@@ -920,7 +924,7 @@ function render(){
         ctx.restore();
         ctx.font = '10px "Fragment Mono", monospace';
         ctx.fillStyle = 'rgba(125,255,212,0.7)';
-        ctx.fillText(c.name, cx2, cy2 + (sy2 > cy2 ? -14 : 22));
+        ctx.fillText(c.name, clamp(cx2, 80, W - 80), cy2 + (sy2 > cy2 ? -14 : 22));
       }
     }
   }
@@ -952,6 +956,9 @@ function backToTitle(){
 }
 
 ui.rerollBtn.addEventListener('click', () => { ui.nameInput.value = randomSpeciesName(); });
+ui.nameInput.addEventListener('click', () => { ui.nameInput.value = randomSpeciesName(); });
+$('aboutBtn').addEventListener('click', () => $('about').classList.remove('hidden'));
+$('aboutCloseBtn').addEventListener('click', () => $('about').classList.add('hidden'));
 ui.beginBtn.addEventListener('click', beginFromTitle);
 ui.evolveBtn.addEventListener('click', openEditor);
 ui.resumeBtn.addEventListener('click', closeEditor);
@@ -960,14 +967,13 @@ ui.restartBtn.addEventListener('click', backToTitle);
 ui.winRestartBtn.addEventListener('click', () => Net.respawn());
 ui.shareDeathBtn.addEventListener('click', shareDeath);
 ui.shareWinBtn.addEventListener('click', shareWin);
-ui.dashBtn.addEventListener('pointerdown', e => { e.preventDefault(); tryDash(); });
 
 document.addEventListener('visibilitychange', () => { Game.last = null; });
 
 /* touch-first copy for touch-first devices */
 if (window.matchMedia && matchMedia('(pointer: coarse)').matches){
   ui.hint.textContent = 'hold to swim · double-tap to dash';
-  ui.controlsNote.textContent = 'touch to swim · double-tap or button to dash';
+  ui.controlsNote.textContent = 'touch to swim · double-tap to dash';
 }
 
 ui.nameInput.value = randomSpeciesName();

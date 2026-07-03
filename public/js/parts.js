@@ -89,19 +89,43 @@ function randomGenome(budget){
   };
 }
 
-/* ---- species name generator: dubious latin ---- */
-const NAME_FRONT = ['Glo','Mur','Vor','Squi','Plu','Bry','Zil','Nem','Cra','Flu','Wib','Oo','Thal','Spo'];
-const NAME_MID   = ['ba','mo','ri','ple','dra','no','lu','ga','zzo','ndi',''];
-const NAME_END   = ['dax','mia','pod','zoa','rix','lus','nid','phor','bula','cyst'];
-const NAME_EPITHET = ['minor','luminis','vulgaris','tremula','spinosa','dulcis','errans','profunda','viscosa','pigfordii'];
+/* ---- species name generator: dubious latin ----
+   Names are ONLY ever generated (never typed) — that is the whole
+   moderation strategy. ~170k combinations. */
+const NAME_FRONT = ['Glo','Mur','Vor','Squi','Plu','Bry','Zil','Nem','Cra','Flu','Wib','Oo','Thal','Spo',
+  'Kel','Bar','Mox','Fen','Tri','Quab','Yol','Dro','Hux','Pip','Vel','Sna'];
+const NAME_MID   = ['ba','mo','ri','ple','dra','no','lu','ga','zzo','ndi','',
+  'ta','vi','ko','ra','zel','mun'];
+const NAME_END   = ['dax','mia','pod','zoa','rix','lus','nid','phor','bula','cyst',
+  'gast','mere','plax','thid','vorn','culo'];
+const NAME_EPITHET = ['minor','luminis','vulgaris','tremula','spinosa','dulcis','errans','profunda','viscosa','pigfordii',
+  'gloriosa','furtiva','placida','borealis','abyssi','lucens','velox','modesta','iridescens','somnia',
+  'crispini','maximus','humilis','undulata'];
 
 function randomSpeciesName(){
   return pick(NAME_FRONT) + pick(NAME_MID) + pick(NAME_END) + ' ' + pick(NAME_EPITHET);
 }
 
+/* server-side check: accept only names our own generator could have produced */
+function isValidSpeciesName(name){
+  const m = /^([A-Z][a-z]+) ([a-z]+)$/.exec(name || '');
+  if (!m) return false;
+  if (!NAME_EPITHET.includes(m[2])) return false;
+  const genus = m[1];
+  for (const f of NAME_FRONT){
+    if (!genus.startsWith(f)) continue;
+    for (const e of NAME_END){
+      if (!genus.endsWith(e)) continue;
+      if (genus.length < f.length + e.length) continue;
+      if (NAME_MID.includes(genus.slice(f.length, genus.length - e.length))) return true;
+    }
+  }
+  return false;
+}
+
 const GEN_TITLES = ['Mote', 'Wriggler', 'Darter', 'Lurker', 'Sovereign of the Shallows'];
 const ROMAN = ['I', 'II', 'III', 'IV', 'V'];
 
-/* shared between client and server */
-const growthNeedFor = gen => 110 + (gen - 1) * 45;
+/* shared between client and server; tuned for the food-dense shared pool */
+const growthNeedFor = gen => 150 + (gen - 1) * 75;
 const FOOD_TYPES = ['mote', 'algae', 'meat', 'dna'];
