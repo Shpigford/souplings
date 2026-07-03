@@ -1,5 +1,5 @@
 /* ============================================================
-   PRIMORDIA on Cloudflare — Worker entry + Soup Durable Object
+   SOUPLINGS on Cloudflare — Worker entry + Soup Durable Object
    One DO instance holds the one shared soup; clients attach
    over WebSockets and receive 15 Hz world snapshots.
    ============================================================ */
@@ -38,7 +38,7 @@ export default {
 export class Soup {
   constructor(state, env){
     this.state = state;
-    this.debug = env.PRIMORDIA_DEBUG === '1' || env.PRIMORDIA_DEBUG === 'true';
+    this.debug = env.SOUPLINGS_DEBUG === '1' || env.SOUPLINGS_DEBUG === 'true';
     this.world = new World(WORLD_R);
     this.clients = new Map();   // ws -> client
     this.events = [];

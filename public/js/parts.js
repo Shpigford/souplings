@@ -1,5 +1,5 @@
 /* ============================================================
-   PRIMORDIA — parts catalog, stat derivation, species names
+   SOUPLINGS — parts catalog, stat derivation, species names
    ============================================================ */
 
 const PARTS = {

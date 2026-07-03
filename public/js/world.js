@@ -1,5 +1,5 @@
 /* ============================================================
-   PRIMORDIA — World: food, hazards, particles, atmosphere
+   SOUPLINGS — World: food, hazards, particles, atmosphere
    ============================================================ */
 
 const FOOD_DEF = {

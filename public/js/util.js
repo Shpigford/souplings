@@ -1,5 +1,5 @@
 /* ============================================================
-   PRIMORDIA — util: math helpers & glow sprite cache
+   SOUPLINGS — util: math helpers & glow sprite cache
    ============================================================ */
 
 const TAU = Math.PI * 2;

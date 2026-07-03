@@ -1,5 +1,5 @@
 /* ============================================================
-   PRIMORDIA — Cell: physics, AI brain, procedural rendering
+   SOUPLINGS — Cell: physics, AI brain, procedural rendering
    ============================================================ */
 
 class Cell {

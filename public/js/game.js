@@ -1,5 +1,5 @@
 /* ============================================================
-   PRIMORDIA — networked client: interpolation, input, UI.
+   SOUPLINGS — networked client: interpolation, input, UI.
    The server owns the simulation; this file renders it.
    ============================================================ */
 
@@ -176,7 +176,7 @@ function shareDeath(){
   const m = Net.lastDead;
   if (!m) return;
   const s = m.stats;
-  shareText(`My speck ${s.name} survived ${fmtTime(s.survived)} in PRIMORDIA before being undone by ${m.by || 'the soup'}. Avenge ${s.name}:`);
+  shareText(`My speck ${s.name} survived ${fmtTime(s.survived)} in SOUPLINGS before being undone by ${m.by || 'the soup'}. Avenge ${s.name}:`);
 }
 
 function shareWin(){

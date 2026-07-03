@@ -1,5 +1,5 @@
 {
-  "name": "primordia",
+  "name": "souplings",
   "version": "2.0.0",
   "private": true,
   "description": "A multiplayer tide-pool evolution game on Cloudflare Workers + Durable Objects",

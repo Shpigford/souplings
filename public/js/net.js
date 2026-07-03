@@ -1,5 +1,5 @@
 /* ============================================================
-   PRIMORDIA — client networking: WebSocket to the Soup
+   SOUPLINGS — client networking: WebSocket to the Soup
    ============================================================ */
 
 const Net = {
