@@ -69,6 +69,7 @@ Net.onWelcome = () => {
 };
 
 Net.onJoined = m => {
+  Game.myName = m.name;
   ui.specName.textContent = m.name;
   ui.previewCaption.textContent = m.name;
   ui.title.classList.add('hidden');
@@ -98,9 +99,11 @@ Net.onAshore = m => {
   Game.state = 'win';
   AudioSys.win();
   const s = m.stats;
-  ui.winStats.textContent =
-    `${s.name} · ${fmtTime(s.survived)} in the soup · ` +
-    `${s.dnaTotal} DNA · ${s.kills} kills · ${s.deaths} setbacks`;
+  const stars = '★'.repeat(Math.min(5, s.lineage || 1));
+  ui.winStats.innerHTML =
+    `${esc(s.name)} · dynasty <span class="gold">${stars}${(s.lineage || 1) > 5 ? '×' + s.lineage : ''}</span><br>` +
+    `${fmtTime(s.survived)} in the soup · ${s.dnaTotal} DNA · ${s.kills} kills · ${s.deaths} setbacks`;
+  ui.winRestartBtn.innerHTML = `Continue the dynasty <span>${stars}</span>`;
   ui.win.classList.remove('hidden');
   ui.hud.classList.add('hidden');
 };
@@ -203,7 +206,8 @@ function shareWin(){
   const m = Net.lastAshore;
   if (!m) return;
   const s = m.stats;
-  shareText(`${s.name} crawled ashore after ${fmtTime(s.survived)} in the primordial soup${s.kills ? ` (${s.kills} kills)` : ''}. Evolve faster than me:`);
+  const stars = s.lineage > 1 ? ` My dynasty: ${'★'.repeat(Math.min(5, s.lineage))}.` : '';
+  shareText(`${s.name} crawled ashore after ${fmtTime(s.survived)} in the primordial soup${s.kills ? ` (${s.kills} kills)` : ''}.${stars} Evolve faster than me:`);
 }
 
 /* ============================================================
@@ -540,7 +544,7 @@ function processEvents(){
         if (ev.id === Net.myId){
           AudioSys.molt();
           Game.shake = 10;
-          toast(`Generation ${ROMAN[ev.gen - 1]} — ${GEN_TITLES[ev.gen - 1]}`, true);
+          genSplash(ev.gen);
           if (ev.gen === 5) toast('final generation — fill the bar once more to leave the water', true);
         }
         break;
@@ -645,7 +649,7 @@ function updateCamera(dt){
   Game.cam.zoom = damp(Game.cam.zoom, tz, 2.2, dt);
 }
 
-const hudCache = { hp: -1, gr: -1, dna: -1, gen: -1 };
+const hudCache = { hp: -1, gr: -1, dna: -1, gen: -1, lin: -1 };
 function updateHUD(){
   if (!Net.joined) return;
   const meP = Game.mePuppet;
@@ -668,8 +672,15 @@ function updateHUD(){
     ui.evolveBtn.classList.toggle('afford', affordable);
   }
   if (me.gen !== hudCache.gen){
-    ui.genTitle.textContent = `Generation ${ROMAN[me.gen - 1]} · ${GEN_TITLES[me.gen - 1]}`;
+    ui.genTitle.innerHTML = ROMAN.map((r, i) =>
+      `<span class="gp${i < me.gen ? ' on' : ''}${i === me.gen - 1 ? ' cur' : ''}">${r}</span>`
+    ).join('') + `· ${GEN_TITLES[me.gen - 1]}`;
     hudCache.gen = me.gen;
+  }
+  const lin = meP ? (meP.lineage || 0) : 0;
+  if (lin !== hudCache.lin){
+    ui.specName.textContent = `${Game.myName || ''} ${'★'.repeat(Math.min(3, lin))}`.trim();
+    hudCache.lin = lin;
   }
 }
 
@@ -689,6 +700,35 @@ function updateBoard(){
     `<li class="${p.id === Net.myId ? 'me' : ''}"><span>${esc(p.name)}${p.lineage ? ' ' + '★'.repeat(Math.min(3, p.lineage)) : ''}</span><span>Gen ${ROMAN[p.gen - 1] || 'I'}</span></li>`
   ).join('');
   ui.board.classList.remove('hidden');
+}
+
+function drawCrown(g, x, y, s){
+  g.save();
+  g.translate(x, y);
+  g.fillStyle = 'rgba(255,214,107,0.95)';
+  g.shadowColor = 'rgba(255,214,107,0.7)';
+  g.shadowBlur = 6;
+  g.beginPath();
+  g.moveTo(-s, 0);
+  g.lineTo(-s, -s * 0.55);
+  g.lineTo(-s * 0.45, -s * 0.22);
+  g.lineTo(0, -s);
+  g.lineTo(s * 0.45, -s * 0.22);
+  g.lineTo(s, -s * 0.55);
+  g.lineTo(s, 0);
+  g.closePath();
+  g.fill();
+  g.restore();
+}
+
+/* full-screen level-up banner */
+function genSplash(gen){
+  const el = $('genSplash');
+  el.querySelector('.gsRoman').textContent = `GEN ${ROMAN[gen - 1]}`;
+  el.querySelector('.gsTitle').textContent = GEN_TITLES[gen - 1];
+  el.classList.remove('play');
+  void el.offsetWidth;   // restart the animation
+  el.classList.add('play');
 }
 
 function toast(msg, gold){
@@ -924,8 +964,13 @@ function render(){
       const sy2 = (c.y - Game.cam.y) * z + H / 2;
 
       if (sx2 > -60 && sx2 < W + 60 && sy2 > -60 && sy2 < H + 60){
+        let ly = sy2 - c.r * z - 13;
+        if (c.lineage){
+          /* the crown of an emerged line — visible to everyone */
+          drawCrown(ctx, sx2, ly + 2, 9);
+          ly -= 15;
+        }
         ctx.font = '12px "Fragment Mono", monospace';
-        const ly = sy2 - c.r * z - 13;
         ctx.fillStyle = 'rgba(3,12,18,0.8)';
         ctx.fillText(label, sx2 + 1, ly + 1);
         ctx.fillStyle = isMe ? 'rgba(125,255,212,0.9)' : 'rgba(234,255,245,0.85)';

@@ -332,6 +332,47 @@ button:disabled:hover{ transform:none; box-shadow:none; }
 }
 #hint.faded{ opacity:0; }
 
+/* ============ level-up splash ============ */
+
+#genSplash{
+  position:fixed; inset:0;
+  z-index:2;
+  display:flex; flex-direction:column;
+  align-items:center; justify-content:center;
+  text-align:center;
+  pointer-events:none;
+  opacity:0;
+}
+#genSplash.play{ animation:gsPlay 2.6s ease both; }
+@keyframes gsPlay{
+  0%{ opacity:0; transform:scale(.7); }
+  12%{ opacity:1; transform:scale(1.04); }
+  20%{ transform:scale(1); }
+  74%{ opacity:1; }
+  100%{ opacity:0; transform:scale(1.06); }
+}
+#genSplash .gsRoman{
+  font-family:var(--font-disp);
+  font-style:italic; font-weight:900;
+  font-size:clamp(4rem, 13vw, 8.5rem);
+  line-height:1;
+  color:var(--gold);
+  text-shadow:0 0 70px rgba(255,214,107,.5), 0 0 16px rgba(255,214,107,.35);
+}
+#genSplash .gsTitle{
+  margin-top:.6rem;
+  font-family:var(--font-mono);
+  font-size:.85rem;
+  letter-spacing:.4em;
+  text-transform:uppercase;
+  color:var(--mint);
+}
+
+/* generation ladder pips in the HUD */
+#genTitle .gp{ opacity:.28; margin-right:.45em; }
+#genTitle .gp.on{ opacity:1; color:var(--mint); }
+#genTitle .gp.cur{ text-shadow:0 0 8px rgba(125,255,212,.8); }
+
 #toasts{
   position:absolute;
   top:5.5rem; left:50%;

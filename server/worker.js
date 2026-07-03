@@ -117,11 +117,17 @@ export class Soup {
 
   /* -------------------- world seeding -------------------- */
 
+  /* the shallows grow only crumbs — a full belly requires deeper water */
+  foodTypeAt(x, y){
+    if (Math.hypot(x, y) < WORLD_R * 0.33) return 'mote';
+    return Math.random() < 0.5 ? 'mote' : 'algae';
+  }
+
   seedWorld(){
     const w = this.world;
     for (let i = 0; i < FOOD_TARGET; i++){
       const [x, y] = w.randomFoodSpot(0, 0, 0);
-      w.spawnFood(Math.random() < 0.5 ? 'mote' : 'algae', x, y);
+      w.spawnFood(this.foodTypeAt(x, y), x, y);
     }
     for (let i = 0; i < 9; i++) w.spawnHazard(rand(28, 46));
     for (let i = 0; i < 26; i++){
@@ -287,9 +293,11 @@ export class Soup {
     if (cl.cell){ cl.cell.alive = false; cl.cell.processed = true; cl.cell = null; }
     if (name) cl.name = name;
     cl.genome = { parts: {}, hue: cl.hue, carn: false, aggro: false };
+    /* heirloom: every emergence strengthens the next voyage */
+    const heirloom = 10 + Math.min(90, 15 * cl.lineage);
     cl.run = {
-      gen: 1, baseR: 26, dna: 10, growth: 0, need: growthNeedFor(1),
-      joinT: Date.now(), eaten: 0, kills: 0, deaths: 0, dnaTotal: 10
+      gen: 1, baseR: 26, dna: heirloom, growth: 0, need: growthNeedFor(1),
+      joinT: Date.now(), eaten: 0, kills: 0, deaths: 0, dnaTotal: heirloom
     };
     cl.ashore = false;
     this.spawnPlayerCell(cl);
@@ -524,7 +532,7 @@ export class Soup {
       } else {
         [x, y] = world.randomFoodSpot(0, 0, 0);
       }
-      world.spawnFood(Math.random() < 0.5 ? 'mote' : 'algae', x, y);
+      world.spawnFood(this.foodTypeAt(x, y), x, y);
     }
 
     world.update(dt);

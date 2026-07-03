@@ -181,7 +181,8 @@ class Cell {
         if (c.isPlayer && c.r < NEWBIE_R) continue;        // newborn players are beneath notice
         if (c.iframes > 1) continue;                       // freshly spawned or encysted — not worth stalking
         if (th.blackT > 0 && c === th.black) continue;     // gave up on that one recently
-        if (nursery && Math.hypot(c.x, c.y) < nursery) continue;
+        /* the nursery shelters only the small — grown campers are fair game */
+        if (nursery && c.r < 45 && Math.hypot(c.x, c.y) < nursery) continue;
         const d = dist(this.x, this.y, c.x, c.y);
         if (d < pd){ pd = d; prey = c; }
       }
