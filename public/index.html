@@ -46,7 +46,7 @@
 
   <button id="evolveBtn">Evolve <kbd>E</kbd></button>
 
-  <button id="menuBtn" aria-label="menu and pause">&#8801;</button>
+  <button id="menuBtn" aria-label="customize, settings and pause">&#8801;&ensp;customize</button>
 
   <div id="toasts"></div>
   <div id="hint">move · mouse or arrows&ensp;&ensp;dash · click / space&ensp;&ensp;evolve · E&ensp;&ensp;mute · M</div>
@@ -72,6 +72,7 @@
     </div>
 
     <div id="hueRow" aria-label="dynasty colors"></div>
+    <div id="trailRow" class="trailRow" aria-label="wake trails"></div>
 
     <button id="beginBtn" disabled>Begin as a speck</button>
     <p id="connStatus" class="mono connStatus">connecting to the soup…</p>
@@ -92,6 +93,15 @@
     <p class="mono dim">move · mouse or arrows &nbsp; dash · click or space &nbsp; evolve · E &nbsp; menu · esc &nbsp; mute · M</p>
     <p class="mono dim">created by Josh Pigford ·
       <a href="https://x.com/Shpigford" target="_blank" rel="noopener">@Shpigford</a> on X</p>
+    <div id="identBlock" class="identBlock hidden">
+      <div class="identRow">
+        <input id="menuName" type="text" maxlength="24" spellcheck="false" autocomplete="off" aria-label="change species name">
+        <button id="menuRoll" title="new name" aria-label="randomize name">&#9856;</button>
+      </div>
+      <div id="menuHueRow" class="menuHueRow"></div>
+      <div id="menuTrailRow" class="trailRow"></div>
+      <button id="identApply" class="ghost mono">apply changes</button>
+    </div>
     <p id="menuSafety" class="mono safety"></p>
     <button id="aboutCloseBtn">Back to the soup</button>
     <div class="resetRow"><button id="resetBtn" class="ghost danger mono">dissolve everything (full reset)</button></div>

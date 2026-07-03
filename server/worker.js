@@ -5,7 +5,7 @@
    ============================================================ */
 
 import {
-  Cell, World, PARTS, PART_KEYS, FOOD_TYPES, NEWBIE_R, HUE_UNLOCKS,
+  Cell, World, PARTS, PART_KEYS, FOOD_TYPES, NEWBIE_R, HUE_UNLOCKS, TRAIL_UNLOCKS,
   randomGenome, partCost, randomSpeciesName, isValidSpeciesName, growthNeedFor,
   rand, randInt, pick, clamp, dist, TAU
 } from './sim.gen.mjs';
@@ -80,7 +80,7 @@ export class Soup {
       genome: null, alive: false, ashore: false,
       hue: PLAYER_HUES[this.hueCursor++ % PLAYER_HUES.length],
       input: { tx: 0, ty: 0, th: 0 },
-      lineage: 0, cyst: 0, editorOpen: false, lastDamageAt: 0
+      lineage: 0, cyst: 0, editorOpen: false, lastDamageAt: 0, trail: 0
     };
     this.clients.set(ws, cl);
     this.send(cl, { t: 'welcome', id: cl.id, radius: WORLD_R, hazards: this.world.hazards, world: this.worldStats() });
@@ -308,6 +308,7 @@ export class Soup {
   freshRun(cl, name){
     if (cl.cell){ cl.cell.alive = false; cl.cell.processed = true; cl.cell = null; }
     if (name) cl.name = name;
+    if (!cl.name) cl.name = randomSpeciesName();   // respawn on a fresh socket, no join first
     cl.genome = { parts: {}, hue: cl.hue, carn: false, aggro: false };
     /* heirloom: every emergence strengthens the next voyage */
     const heirloom = 10 + Math.min(90, 15 * cl.lineage);
@@ -371,6 +372,32 @@ export class Soup {
       case 'editor':
         cl.editorOpen = !!m.open;
         break;
+      case 'ident': {
+        /* live identity update from the pause menu */
+        if (!cl.run) break;
+        const raw = String(m.name || '').trim();
+        if (raw && raw !== cl.name){
+          if (isValidSpeciesName(raw)){
+            cl.name = raw;
+          } else if (/^[A-Za-z0-9 '\-\.]{2,24}$/.test(raw) && await this.moderateName(raw)){
+            cl.name = raw;
+          } else {
+            this.send(cl, { t: 'toast', msg: 'the taxonomists rejected that name' });
+          }
+        }
+        const wHue = +m.hue;
+        const hOpt = HUE_UNLOCKS.find(u => u[0] === wHue);
+        if (hOpt && cl.lineage >= hOpt[1]){
+          cl.hue = wHue;
+          if (cl.genome) cl.genome.hue = wHue;
+        }
+        const wTrail = +m.trail;
+        const tOpt = TRAIL_UNLOCKS.find(u => u[0] === wTrail);
+        if (tOpt && cl.lineage >= tOpt[1]) cl.trail = wTrail;
+        this.saveProfile(cl);
+        this.send(cl, { t: 'renamed', name: cl.name });
+        break;
+      }
       case 'join': {
         /* restore the dynasty first: lineage persists per anonymous device token */
         if (typeof m.token === 'string' && /^[0-9a-f]{16,64}$/.test(m.token)){
@@ -389,10 +416,13 @@ export class Soup {
           name = randomSpeciesName();
           if (raw) this.send(cl, { t: 'toast', msg: 'the taxonomists rejected that name — you are ' + name });
         }
-        /* dynasty hues: only what the lineage has earned */
+        /* dynasty hues + trails: only what the lineage has earned */
         const wantHue = +m.hue;
         const hueOpt = HUE_UNLOCKS.find(u => u[0] === wantHue);
         if (hueOpt && cl.lineage >= hueOpt[1]) cl.hue = wantHue;
+        const wantTrail = +m.trail;
+        const trailOpt = TRAIL_UNLOCKS.find(u => u[0] === wantTrail);
+        if (trailOpt && cl.lineage >= trailOpt[1]) cl.trail = wantTrail;
         this.freshRun(cl, name);
         this.saveProfile(cl);
         this.events.push({ e: 'join', name });
@@ -676,7 +706,7 @@ export class Soup {
         Math.round(c.genome.hue), partsStr(c.genome.parts),
         (c.genome.carn ? 1 : 0) | (c.genome.aggro ? 2 : 0) | (c.isPlayer ? 4 : 0)
       ];
-      if (c.client) row.push(c.client.name, c.client.run.gen, c.client.run.dnaTotal, c.client.lineage);
+      if (c.client) row.push(c.client.name, c.client.run.gen, c.client.run.dnaTotal, c.client.lineage, c.client.trail || 0);
       return row;
     });
     const foodArr = world.food.map(f =>

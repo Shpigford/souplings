@@ -66,6 +66,16 @@ Net.onWelcome = () => {
   Game.world.hazards = Net.hazards;
   Game.puppets.clear();
   Game.foodCache.clear();
+  Game.pred = null;
+  /* reconnected mid-run (deploy, eviction, network blip): the old cell is
+     gone — rejoin immediately instead of stranding the player in a
+     spectator camera with no working buttons */
+  if (!Net.joined && (Game.state === 'play' || Game.state === 'editor' || Game.menuOpen)){
+    if (Game.state === 'editor') closeEditor();
+    if (Game.menuOpen) closeMenu();
+    toast('the current swept you away — your line begins anew', false);
+    Net.join(Game.myName || savedName() || randomSpeciesName());
+  }
 };
 
 Net.onJoined = m => {
@@ -122,7 +132,11 @@ Net.onAshore = m => {
   AudioSys.win();
   const s = m.stats;
   const stars = '★'.repeat(Math.min(5, s.lineage || 1));
-  try { localStorage.setItem('soup_lineage', String(s.lineage || 1)); } catch (e) {}
+  try {
+    localStorage.setItem('soup_lineage', String(s.lineage || 1));
+    localStorage.removeItem('soup_menu_seen');   // new unlocks: draw the eye again
+  } catch (e) {}
+  $('menuBtn').classList.add('pulse');
   buildHueRow();
   const b = loadBests();
   const fastest = !b.fastest || s.survived < b.fastest;
@@ -159,6 +173,17 @@ Net.onStatus = state => {
 /* tutorial nudges: each hint key is shown once ever per device */
 const seenHints = new Set();   // fallback when localStorage is unavailable
 Net.onToast = m => toast(m.msg, false);
+
+Net.onRenamed = m => {
+  if (m.name && m.name !== Game.myName){
+    Game.myName = m.name;
+    try { localStorage.setItem('soup_name', m.name); } catch (e) {}
+    ui.specName.textContent = m.name;
+    ui.previewCaption.textContent = m.name;
+    hudCache.lin = -1;
+    toast(`the taxonomists record you as ${m.name}`, false);
+  }
+};
 
 Net.onHint = m => {
   const key = 'soup_hint_' + (m.key || m.msg);
@@ -543,7 +568,7 @@ function sample(){
       p.partsStr = e1[10];
       p.statsR = p.r;
     }
-    if (e1.length > 12){ p.name = e1[12]; p.gen = e1[13]; p.dnaTotal = e1[14]; p.lineage = e1[15] || 0; }
+    if (e1.length > 12){ p.name = e1[12]; p.gen = e1[13]; p.dnaTotal = e1[14]; p.lineage = e1[15] || 0; p.trail = e1[16] || 0; }
     live.push(p);
     if (p.id === Net.myId) Game.mePuppet = p;
   }
@@ -675,6 +700,27 @@ function update(dt){
       p.biteT = Math.max(0, p.biteT - dt);
       p.hurtT = Math.max(0, p.hurtT - dt);
       p.dashT = Math.max(0, p.dashT - dt);
+      p.pokeT = Math.max(0, (p.pokeT || 0) - dt);
+      /* earned wake trails, visible to everyone */
+      if (p.trail && Math.hypot(p.vx, p.vy) > 70){
+        p.trailT = (p.trailT || 0) + dt;
+        if (p.trailT > 0.09){
+          p.trailT = 0;
+          const bx = p.x - Math.cos(p.dir) * p.r;
+          const by = p.y - Math.sin(p.dir) * p.r;
+          if (p.trail === 1) Game.world.bubble(bx, by, rand(1.5, 3));
+          else if (p.trail === 2) Game.world.particles.push({
+            x: bx, y: by, vx: rand(-12, 12), vy: rand(-12, 12),
+            life: rand(0.4, 0.8), maxLife: 0.8, r: rand(1.5, 2.6),
+            color: 'rgba(255,214,107,0.8)', rise: 0
+          });
+          else if (p.trail === 3) Game.world.particles.push({
+            x: bx, y: by, vx: rand(-8, 8), vy: rand(-8, 8),
+            life: rand(0.6, 1.1), maxLife: 1.1, r: rand(5, 10),
+            color: 'rgba(6,10,18,0.75)', rise: 0, dark: true
+          });
+        }
+      }
     }
     Game.world.update(dt);   // particles + hazard spin (food is overwritten by snapshots)
 
@@ -712,6 +758,20 @@ function update(dt){
     }
   }
 
+  /* stranded watchdog: playing but not joined for too long means every
+     recovery path failed — return to the title rather than trap the player */
+  if ((Game.state === 'play' || Game.state === 'editor') && !Net.joined){
+    Game.strandedT = (Game.strandedT || 0) + dt;
+    if (Game.strandedT > 8){
+      Game.strandedT = 0;
+      if (Game.state === 'editor') closeEditor();
+      if (Game.menuOpen) closeMenu();
+      backToTitle();
+    }
+  } else {
+    Game.strandedT = 0;
+  }
+
   updateCamera(dt);
   Game.shake *= Math.exp(-6 * dt);
   updateHUD();
@@ -736,6 +796,11 @@ function updateCamera(dt){
     tx = meP.x + meP.vx * 0.22;
     ty = meP.y + meP.vy * 0.22;
     tz = H / (meP.r * 26 * (meP.stats ? meP.stats.zoomOut : 1));
+  } else if (Game.state === 'play' || Game.state === 'editor'){
+    /* mid-run without a cell (reconnecting): hold still, don't fly away */
+    tx = Game.cam.x;
+    ty = Game.cam.y;
+    tz = Game.cam.zoom;
   } else {
     tx = Math.cos(Game.time * 0.04) * 420;
     ty = Math.sin(Game.time * 0.03) * 420;
@@ -1210,23 +1275,49 @@ function cachedLineage(){
   try { return +localStorage.getItem('soup_lineage') || 0; } catch (e) { return 0; }
 }
 function buildHueRow(){
-  const row = $('hueRow');
-  if (!row) return;
   const lin = cachedLineage();
   let sel = 158;
   try { sel = +localStorage.getItem('soup_hue') || 158; } catch (e) {}
-  row.innerHTML = '';
-  for (const [h, req] of HUE_UNLOCKS){
-    const dot = document.createElement('button');
-    dot.className = 'hueDot' + (lin < req ? ' locked' : '') + (h === sel ? ' sel' : '');
-    dot.style.background = `hsl(${h}, 78%, 58%)`;
-    dot.title = lin < req ? `unlocks at dynasty ${'★'.repeat(req)}` : 'dynasty color';
-    dot.addEventListener('click', () => {
-      if (lin < req){ toast(`that color unlocks at dynasty ${'★'.repeat(req)}`, false); return; }
-      try { localStorage.setItem('soup_hue', String(h)); } catch (e) {}
-      buildHueRow();
-    });
-    row.appendChild(dot);
+  for (const id of ['hueRow', 'menuHueRow']){
+    const row = $(id);
+    if (!row) continue;
+    row.innerHTML = '';
+    for (const [h, req] of HUE_UNLOCKS){
+      const dot = document.createElement('button');
+      dot.className = 'hueDot' + (lin < req ? ' locked' : '') + (h === sel ? ' sel' : '');
+      dot.style.background = `hsl(${h}, 78%, 58%)`;
+      dot.title = lin < req ? `unlocks at dynasty ${'★'.repeat(req)}` : 'dynasty color';
+      dot.addEventListener('click', () => {
+        if (lin < req){ toast(`that color unlocks at dynasty ${'★'.repeat(req)}`, false); return; }
+        try { localStorage.setItem('soup_hue', String(h)); } catch (e) {}
+        buildHueRow();
+      });
+      row.appendChild(dot);
+    }
+  }
+  buildTrailRow();
+}
+
+function buildTrailRow(){
+  const lin = cachedLineage();
+  let sel = 0;
+  try { sel = +localStorage.getItem('soup_trail') || 0; } catch (e) {}
+  for (const id of ['trailRow', 'menuTrailRow']){
+    const row = $(id);
+    if (!row) continue;
+    row.innerHTML = '';
+    for (const [idx, req] of TRAIL_UNLOCKS){
+      const chip = document.createElement('button');
+      chip.className = 'trailChip mono' + (lin < req ? ' locked' : '') + (idx === sel ? ' sel' : '');
+      chip.textContent = TRAIL_NAMES[idx] + (lin < req ? ` ★${req}` : '');
+      chip.title = lin < req ? `wake unlocks at dynasty ★${req}` : 'wake trail';
+      chip.addEventListener('click', () => {
+        if (lin < req){ toast(`that wake unlocks at dynasty ${'★'.repeat(req)}`, false); return; }
+        try { localStorage.setItem('soup_trail', String(idx)); } catch (e) {}
+        buildHueRow();
+      });
+      row.appendChild(chip);
+    }
   }
 }
 
@@ -1244,7 +1335,14 @@ function menuSafetyFlag(){
 }
 function openMenu(){
   Game.menuOpen = true;
+  try { localStorage.setItem('soup_menu_seen', '1'); } catch (e) {}
+  $('menuBtn').classList.remove('pulse');
   $('about').classList.remove('hidden');
+  $('identBlock').classList.toggle('hidden', !Net.joined);
+  if (Net.joined){
+    $('menuName').value = Game.myName || '';
+    buildHueRow();
+  }
   menuSafetyFlag();
 }
 function closeMenu(){
@@ -1252,6 +1350,15 @@ function closeMenu(){
   $('about').classList.add('hidden');
   menuSafetyFlag();
 }
+$('menuRoll').addEventListener('click', () => { $('menuName').value = randomSpeciesName(); });
+$('identApply').addEventListener('click', () => {
+  let hue = 158, trail = 0;
+  try {
+    hue = +localStorage.getItem('soup_hue') || 158;
+    trail = +localStorage.getItem('soup_trail') || 0;
+  } catch (e) {}
+  Net.ident($('menuName').value.trim(), hue, trail);
+});
 $('aboutBtn').addEventListener('click', openMenu);
 $('aboutCloseBtn').addEventListener('click', closeMenu);
 $('menuBtn').addEventListener('click', openMenu);
@@ -1326,6 +1433,7 @@ const SAVE_V = 1;
 })();
 
 ui.nameInput.value = savedName() || randomSpeciesName();
+try { if (!localStorage.getItem('soup_menu_seen')) $('menuBtn').classList.add('pulse'); } catch (e) {}
 buildHueRow();
 buildEditor();
 updateConnStatus();

@@ -163,3 +163,7 @@ const NEWBIE_R = 40;
 
 /* dynasty hues: [hue, emergences required] — two free, the rest earned */
 const HUE_UNLOCKS = [[158, 0], [205, 0], [95, 1], [45, 2], [262, 3], [305, 4], [20, 5], [180, 6]];
+
+/* wake trails: cosmetic particle wakes, earned by emergences */
+const TRAIL_NAMES = ['plain', 'bubbles', 'gleam', 'murk'];
+const TRAIL_UNLOCKS = [[0, 0], [1, 1], [2, 3], [3, 5]];   // [trail index, emergences required]

@@ -205,6 +205,58 @@ button kbd{ border-color:rgba(4,18,29,.4); color:inherit; }
 .hueDot.locked{ opacity:.28; cursor:default; }
 .hueDot:hover:not(.locked){ transform:scale(1.2); }
 
+.trailRow{
+  display:flex; gap:.45rem; justify-content:center; flex-wrap:wrap;
+  margin:0 0 1.3rem;
+  animation:riseIn .7s .55s ease both;
+}
+.trailChip{
+  font-size:.6rem;
+  letter-spacing:.12em;
+  text-transform:uppercase;
+  padding:.45em 1em;
+  background:transparent;
+  color:var(--mint-dim);
+  border:1px solid rgba(125,255,212,.2);
+  border-radius:999px;
+}
+.trailChip.sel{ color:var(--abyss); background:var(--mint); }
+.trailChip.locked{ opacity:.35; cursor:default; }
+
+.identBlock{
+  margin:.4rem 0 1rem;
+  padding-top:1rem;
+  border-top:1px solid rgba(125,255,212,.12);
+}
+.identRow{
+  display:flex; gap:.5rem; justify-content:center; align-items:center;
+  margin-bottom:.8rem;
+}
+.identRow input{
+  font-family:var(--font-disp);
+  font-style:italic;
+  font-size:1rem;
+  color:var(--ink);
+  background:rgba(125,255,212,.06);
+  border:1px solid var(--card-edge);
+  border-radius:12px;
+  padding:.45em .9em;
+  width:14em;
+  text-align:center;
+  outline:none;
+}
+.identRow button{
+  padding:.3em .55em;
+  background:transparent;
+  color:var(--mint);
+  border:1px solid var(--card-edge);
+  border-radius:10px;
+  font-size:1.1rem;
+  line-height:1;
+}
+.menuHueRow{ display:flex; gap:.5rem; justify-content:center; margin-bottom:.7rem; }
+#identApply{ font-size:.68rem; }
+
 #beginBtn{
   font-size:1.25rem;
   padding:.85em 2.2em;
@@ -358,18 +410,21 @@ button:disabled:hover{ transform:none; box-shadow:none; }
   position:absolute;
   bottom:calc(1.6rem + env(safe-area-inset-bottom, 0px));
   right:1.4rem;
-  width:44px; height:44px;
-  padding:0;
+  padding:.6em 1.1em;
   display:flex; align-items:center; justify-content:center;
-  border-radius:50%;
-  background:rgba(125,255,212,.08);
+  border-radius:999px;
+  background:rgba(125,255,212,.1);
   color:var(--mint);
   border:1px solid var(--card-edge);
-  font-size:1.25rem;
+  font-family:var(--font-mono);
+  font-size:.72rem;
+  letter-spacing:.12em;
+  text-transform:uppercase;
   line-height:1;
   backdrop-filter:blur(6px);
 }
-#menuBtn:hover{ transform:scale(1.08); }
+#menuBtn:hover{ transform:scale(1.06); }
+#menuBtn.pulse{ animation:breathe 2.2s ease-in-out infinite; }
 
 #hint{
   position:absolute;
