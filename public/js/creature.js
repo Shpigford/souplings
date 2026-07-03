@@ -120,6 +120,16 @@ class Cell {
       case 'hunt': {
         const tgt = th.target;
         if (!tgt || !tgt.alive){ th.mode = 'wander'; break; }
+        /* predators are lazy: a chase that drags on isn't worth it */
+        th.huntT = (th.huntT || 0) + dt;
+        if (th.huntT > 4.5){
+          th.black = tgt;
+          th.blackT = 9;
+          th.huntT = 0;
+          th.mode = 'wander';
+          this.pickWanderPoint(world);
+          break;
+        }
         this.steer(tgt.x, tgt.y, dt, 0.85);
         break;
       }
@@ -138,6 +148,7 @@ class Cell {
 
   plan(world){
     const s = this.stats, th = this.think;
+    th.blackT = Math.max(0, (th.blackT || 0) - 0.35);
 
     /* 1. flee anything big and mean */
     let threat = null, td = s.sense * 0.75;
@@ -167,11 +178,18 @@ class Cell {
       for (const c of world.cells){
         if (c === this || !c.alive) continue;
         if (c.r > this.r * 0.85) continue;
+        if (c.iframes > 1) continue;                       // freshly spawned or encysted — not worth stalking
+        if (th.blackT > 0 && c === th.black) continue;     // gave up on that one recently
         if (nursery && Math.hypot(c.x, c.y) < nursery) continue;
         const d = dist(this.x, this.y, c.x, c.y);
         if (d < pd){ pd = d; prey = c; }
       }
-      if (prey){ th.mode = 'hunt'; th.target = prey; return; }
+      if (prey){
+        if (th.target !== prey) th.huntT = 0;
+        th.mode = 'hunt';
+        th.target = prey;
+        return;
+      }
     }
 
     /* 3. graze */

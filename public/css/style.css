@@ -445,6 +445,7 @@ button:disabled:hover{ transform:none; box-shadow:none; }
   border-top:1px solid rgba(125,255,212,.15);
   padding-top:1rem;
 }
+#editorSafety.danger{ color:var(--coral); opacity:.9; }
 
 /* ============ death & win ============ */
 

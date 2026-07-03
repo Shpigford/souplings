@@ -47,7 +47,7 @@ export class Soup {
     this.hueCursor = 0;
     this.timer = null;
     /* the chronicle: persistent all-time world stats */
-    this.stats = { joins: 0, deaths: 0, ashore: 0, pvp: 0, fastest: null, deadliest: null };
+    this.stats = { joins: 0, deaths: 0, ashore: 0, pvp: 0, fastest: null, deadliest: null, dynasty: null };
     state.blockConcurrencyWhile(async () => {
       const saved = await state.storage.get('stats');
       if (saved) this.stats = { ...this.stats, ...saved };
@@ -78,7 +78,8 @@ export class Soup {
       ws, id: this.nextId++, name: null, cell: null, run: null,
       genome: null, alive: false, ashore: false,
       hue: PLAYER_HUES[this.hueCursor++ % PLAYER_HUES.length],
-      input: { tx: 0, ty: 0, th: 0 }
+      input: { tx: 0, ty: 0, th: 0 },
+      lineage: 0, cyst: 0, editorOpen: false, lastDamageAt: 0
     };
     this.clients.set(ws, cl);
     this.send(cl, { t: 'welcome', id: cl.id, radius: WORLD_R, hazards: this.world.hazards, world: this.worldStats() });
@@ -197,6 +198,7 @@ export class Soup {
     const dealt = def.takeDamage(dmg, att.x, att.y);
     if (dealt > 0){
       def.lastHitBy = att;
+      if (def.client) def.client.lastDamageAt = Date.now();
       this.events.push({
         e: 'hit', x: Math.round(def.x), y: Math.round(def.y),
         hue: Math.round(def.genome.hue), att: att.id, tgt: def.id
@@ -260,7 +262,8 @@ export class Soup {
     const c = new Cell({ x, y, r: cl.run.baseR, genome: cl.genome, isPlayer: true });
     c.id = cl.id;
     c.client = cl;
-    c.iframes = 3;
+    /* newborn specks get a long grace; armed veterans respawn with less */
+    c.iframes = Object.keys(cl.genome.parts).length ? 4 : 8;
     c.r = cl.run.baseR * (1 + 0.16 * clamp(cl.run.growth / cl.run.need, 0, 1));
     c.recalc();
     c.hp = c.stats.maxHp;
@@ -289,6 +292,9 @@ export class Soup {
     switch (m.t){
       case 'ping':
         /* no-op — the incoming message itself resets the DO's CPU allowance */
+        break;
+      case 'editor':
+        cl.editorOpen = !!m.open;
         break;
       case 'join': {
         const name = sanitizeName(m.name);
@@ -353,7 +359,17 @@ export class Soup {
     const world = this.world;
 
     for (const cl of this.clients.values()){
-      if (cl.alive && cl.cell) cl.cell.steer(cl.input.tx, cl.input.ty, dt, cl.input.th);
+      if (!cl.alive || !cl.cell) continue;
+      /* encysted: safe & stationary while mutating — but only if calm */
+      if (cl.editorOpen && Date.now() - (cl.lastDamageAt || 0) > 4000){
+        cl.cyst = 2;
+        cl.cell.iframes = Math.max(cl.cell.iframes, 1.2);
+        cl.cell.vx *= 0.85;
+        cl.cell.vy *= 0.85;
+        continue;
+      }
+      cl.cyst = cl.editorOpen ? 1 : 0;
+      cl.cell.steer(cl.input.tx, cl.input.ty, dt, cl.input.th);
     }
 
     for (const c of world.cells) if (!c.isPlayer) c.aiUpdate(dt, world);
@@ -414,6 +430,7 @@ export class Soup {
         if (dist(c.x, c.y, h.x, h.y) < c.r + h.r * 1.1){
           c.takeDamage(11, h.x, h.y);
           c.iframes = Math.max(c.iframes, 0.6);
+          if (c.client) c.client.lastDamageAt = Date.now();
           this.events.push({
             e: 'hit', x: Math.round(c.x), y: Math.round(c.y),
             hue: Math.round(c.genome.hue), att: 0, tgt: c.id
@@ -442,13 +459,18 @@ export class Soup {
         cl.ashore = true;
         const rs = this.runStats(cl);
         this.stats.ashore++;
+        cl.lineage++;
         if (!this.stats.fastest || rs.survived < this.stats.fastest.s){
           this.stats.fastest = { name: cl.name, s: rs.survived };
         }
         if (rs.kills > (this.stats.deadliest ? this.stats.deadliest.n : 0)){
           this.stats.deadliest = { name: cl.name, n: rs.kills };
         }
+        if (cl.lineage > (this.stats.dynasty ? this.stats.dynasty.n : 0)){
+          this.stats.dynasty = { name: cl.name, n: cl.lineage };
+        }
         this.saveStats();
+        rs.lineage = cl.lineage;
         this.send(cl, { t: 'ashore', stats: rs });
       } else {
         run.gen++;
@@ -515,7 +537,7 @@ export class Soup {
         Math.round(c.genome.hue), partsStr(c.genome.parts),
         (c.genome.carn ? 1 : 0) | (c.genome.aggro ? 2 : 0) | (c.isPlayer ? 4 : 0)
       ];
-      if (c.client) row.push(c.client.name, c.client.run.gen, c.client.run.dnaTotal);
+      if (c.client) row.push(c.client.name, c.client.run.gen, c.client.run.dnaTotal, c.client.lineage);
       return row;
     });
     const foodArr = world.food.map(f =>
@@ -534,7 +556,7 @@ export class Soup {
         if (cl.run){
           cl.ws.send(JSON.stringify({
             t: 'you', dna: cl.run.dna, growth: +cl.run.growth.toFixed(1),
-            need: cl.run.need, gen: cl.run.gen
+            need: cl.run.need, gen: cl.run.gen, cyst: cl.cyst || 0
           }));
         }
       } catch (e) { /* dropped mid-send; close handler cleans up */ }

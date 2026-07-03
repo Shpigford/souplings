@@ -70,7 +70,8 @@ function deriveStats(genome, r, isPlayer){
 /* random genome for AI fauna; scale ~ relative power budget */
 function randomGenome(budget){
   const parts = {};
-  const carn = Math.random() < 0.42;
+  /* the small fry skew peaceful; real predators are bigger investments */
+  const carn = Math.random() < (budget <= 2 ? 0.28 : 0.42);
   const pool = carn
     ? ['jaw', 'jaw', 'spike', 'flagellum', 'eye', 'membrane', 'cilia']
     : ['filter', 'filter', 'flagellum', 'cilia', 'membrane', 'eye', 'gland', 'spike'];

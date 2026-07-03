@@ -20,10 +20,11 @@ const ui = {
   continueBtn: $('continueBtn'), restartBtn: $('restartBtn'), winRestartBtn: $('winRestartBtn'),
   board: $('board'), boardList: $('boardList'), connStatus: $('connStatus'),
   chronicle: $('chronicle'), deathBy: $('deathBy'), dashBtn: $('dashBtn'),
-  shareDeathBtn: $('shareDeathBtn'), shareWinBtn: $('shareWinBtn'), controlsNote: $('controlsNote')
+  shareDeathBtn: $('shareDeathBtn'), shareWinBtn: $('shareWinBtn'), controlsNote: $('controlsNote'),
+  editorSafety: $('editorSafety')
 };
 
-const INTERP_MS = 120;
+const INTERP_MS = 140;
 
 const Game = {
   state: 'title',            // title | play | editor | dead | win
@@ -31,6 +32,9 @@ const Game = {
   puppets: new Map(),        // id -> render puppet
   foodCache: new Map(),      // id -> render food
   mePuppet: null,
+  pred: null,                // locally-predicted own cell
+  clockOff: undefined,       // client-clock minus server-clock estimate
+  inputMode: 'mouse',        // 'mouse' | 'keys' — last input wins
   cam: { x: 0, y: 0, zoom: 1 },
   shake: 0,
   mouse: { x: 0, y: 0 },
@@ -152,6 +156,7 @@ function updateChronicle(){
   if (w.pvp) lines.push(`${w.pvp} drifters ate each other`);
   if (w.fastest) lines.push(`<span class="rec">fastest emergence — ${esc(w.fastest.name)}, ${fmtTime(w.fastest.s)}</span>`);
   if (w.deadliest && w.deadliest.n > 0) lines.push(`<span class="rec">deadliest — ${esc(w.deadliest.name)}, ${w.deadliest.n} kills</span>`);
+  if (w.dynasty && w.dynasty.n > 1) lines.push(`<span class="rec">greatest dynasty — ${esc(w.dynasty.name)}, ${w.dynasty.n} emergences</span>`);
   ui.chronicle.innerHTML = lines.join('<br>');
   ui.chronicle.classList.remove('hidden');
 }
@@ -192,7 +197,11 @@ function shareWin(){
 
 /* ---- pointer: mouse steers & clicks dash; touch holds to swim, double-taps to dash ---- */
 
-window.addEventListener('pointermove', e => { Game.mouse.x = e.clientX; Game.mouse.y = e.clientY; });
+window.addEventListener('pointermove', e => {
+  Game.mouse.x = e.clientX;
+  Game.mouse.y = e.clientY;
+  Game.inputMode = 'mouse';
+});
 window.addEventListener('pointerdown', e => {
   /* runtime touch detection — belt for devices the media query misses */
   if (e.pointerType !== 'mouse' && !document.body.classList.contains('touchy')){
@@ -205,6 +214,7 @@ let lastTap = 0, lastTapX = 0, lastTapY = 0;
 canvas.addEventListener('pointerdown', e => {
   Game.mouse.x = e.clientX;
   Game.mouse.y = e.clientY;
+  Game.inputMode = 'mouse';
   if (Game.state !== 'play') return;
   if (e.pointerType === 'mouse'){
     tryDash();
@@ -238,6 +248,7 @@ window.addEventListener('keydown', e => {
   }
   if (KEY_DIRS[e.key.length === 1 ? e.key.toLowerCase() : e.key]){
     Keys.add(e.key.length === 1 ? e.key.toLowerCase() : e.key);
+    Game.inputMode = 'keys';
     e.preventDefault();
   } else if (e.key === ' '){
     if (Game.state === 'play'){ tryDash(); e.preventDefault(); }
@@ -257,19 +268,77 @@ window.addEventListener('keyup', e => {
 });
 window.addEventListener('blur', () => Keys.clear());
 
-function steerTarget(){
-  const meP = Game.mePuppet;
-  const kd = keyboardDir();
-  if (kd) return [meP.x + kd[0] * meP.r * 8, meP.y + kd[1] * meP.r * 8, 1];
+function steerTargetFrom(x, y, r){
+  if (Game.inputMode === 'keys'){
+    const kd = keyboardDir();
+    if (kd) return [x + kd[0] * r * 8, y + kd[1] * r * 8, 1];
+    return [x, y, 0];   // keys released: coast to a stop, ignore the parked cursor
+  }
   const [tx, ty] = screenToWorld(Game.mouse.x, Game.mouse.y);
-  const d = dist(meP.x, meP.y, tx, ty);
-  return [tx, ty, clamp((d - meP.r * 0.4) / (meP.r * 3), 0, 1)];
+  const d = dist(x, y, tx, ty);
+  return [tx, ty, clamp((d - r * 0.4) / (r * 3), 0, 1)];
+}
+
+function steerTarget(){
+  const P = Game.pred || Game.mePuppet;
+  return steerTargetFrom(P.x, P.y, Game.mePuppet.r);
 }
 
 function tryDash(){
   if (!Net.joined || !Game.mePuppet) return;
   const [tx, ty, th] = steerTarget();
+  if (Game.pred) Game.pred.dashT = 0.22;   // optimistic — the server echo confirms
   Net.input(tx, ty, Math.max(th, 0.5), true);
+}
+
+/* run the same steering math the server runs, on our own cell, every frame —
+   then softly reconcile toward the authoritative position. Kills the
+   round-trip lag on your own movement. */
+function predictSelf(dt){
+  const meP = Game.mePuppet;
+  if (!meP || !Net.joined || !meP.stats){ Game.pred = null; return; }
+  const st = meP.stats;
+  let P = Game.pred;
+  if (!P) P = Game.pred = { x: meP.x, y: meP.y, vx: meP.vx, vy: meP.vy, dashT: 0 };
+  P.dashT = Math.max(0, P.dashT - dt);
+
+  let tx, ty, th;
+  if (Game.state === 'editor'){ tx = P.x; ty = P.y; th = 0; }
+  else [tx, ty, th] = steerTargetFrom(P.x, P.y, meP.r);
+
+  const dx = tx - P.x, dy = ty - P.y;
+  const d = Math.hypot(dx, dy);
+  const sp = st.speed * (P.dashT > 0 ? 2.8 : 1) * th;
+  const k = st.steerK * (P.dashT > 0 ? 2.2 : 1);
+  P.vx = damp(P.vx, d > 1 ? dx / d * sp : 0, k, dt);
+  P.vy = damp(P.vy, d > 1 ? dy / d * sp : 0, k, dt);
+  P.x += P.vx * dt;
+  P.y += P.vy * dt;
+
+  /* pool edge */
+  const dd = Math.hypot(P.x, P.y);
+  const limit = Net.radius - meP.r * 1.5;
+  if (dd > limit && dd > 1){
+    const push = (dd - limit) * 12 * dt;
+    P.vx -= P.x / dd * push;
+    P.vy -= P.y / dd * push;
+  }
+
+  /* reconcile toward the server's truth */
+  const ex = meP.x - P.x, ey = meP.y - P.y;
+  const err = Math.hypot(ex, ey);
+  if (err > 200){ P.x = meP.x; P.y = meP.y; P.vx = meP.vx; P.vy = meP.vy; }
+  else {
+    const g = 1 - Math.exp(-2.5 * dt);
+    P.x += ex * g;
+    P.y += ey * g;
+  }
+
+  /* the puppet renders at the predicted pose */
+  meP.x = P.x; meP.y = P.y;
+  meP.vx = P.vx; meP.vy = P.vy;
+  const spd = Math.hypot(P.vx, P.vy);
+  if (spd > 12) meP.dir = angleLerp(meP.dir, Math.atan2(P.vy, P.vx), 1 - Math.exp(-8 * dt));
 }
 
 function screenToWorld(sx, sy){
@@ -326,13 +395,28 @@ function sample(){
   Game.mePuppet = null;
   if (!snaps.length || !Game.world) return;
 
-  const rt = performance.now() - INTERP_MS;
+  /* interpolate on the SERVER-time axis: network jitter in arrival times
+     stops mattering. Track the smallest observed (receive − server) clock
+     offset, drifting slowly upward so it can re-adapt. */
+  const newest = snaps[snaps.length - 1];
+  const rawOff = newest.rt - newest.ts;
+  if (Game.clockOff === undefined) Game.clockOff = rawOff;
+  Game.clockOff = Math.min(Game.clockOff + 0.5, rawOff);
+
+  const t = performance.now() - Game.clockOff - INTERP_MS;
+
   let s0 = snaps[0], s1 = snaps[0];
   for (let i = 0; i < snaps.length - 1; i++){
-    if (snaps[i].rt <= rt){ s0 = snaps[i]; s1 = snaps[i + 1]; }
+    if (snaps[i].ts <= t){ s0 = snaps[i]; s1 = snaps[i + 1]; }
   }
-  if (rt >= snaps[snaps.length - 1].rt) s0 = s1 = snaps[snaps.length - 1];
-  const f = s0 === s1 ? 0 : clamp((rt - s0.rt) / (s1.rt - s0.rt || 1), 0, 1);
+  let f = 0, extra = 0;
+  if (t >= newest.ts){
+    /* buffer ran dry — glide on velocity instead of freezing */
+    s0 = s1 = newest;
+    extra = Math.min(200, t - newest.ts) / 1000;
+  } else if (s1 !== s0){
+    f = clamp((t - s0.ts) / (s1.ts - s0.ts || 1), 0, 1);
+  }
 
   /* ---- cells ---- */
   const m0 = cellMapOf(s0);
@@ -340,8 +424,8 @@ function sample(){
   for (const e1 of s1.cells){
     const p = getPuppet(e1[0]);
     const e0 = m0.get(e1[0]) || e1;
-    p.x = lerp(e0[1], e1[1], f);
-    p.y = lerp(e0[2], e1[2], f);
+    p.x = lerp(e0[1], e1[1], f) + e1[3] * extra;
+    p.y = lerp(e0[2], e1[2], f) + e1[4] * extra;
     p.vx = e1[3]; p.vy = e1[4];
     p.dir = angleLerp(e0[5], e1[5], f);
     p.r = lerp(e0[6], e1[6], f);
@@ -360,7 +444,7 @@ function sample(){
       p.partsStr = e1[10];
       p.statsR = p.r;
     }
-    if (e1.length > 12){ p.name = e1[12]; p.gen = e1[13]; p.dnaTotal = e1[14]; }
+    if (e1.length > 12){ p.name = e1[12]; p.gen = e1[13]; p.dnaTotal = e1[14]; p.lineage = e1[15] || 0; }
     live.push(p);
     if (p.id === Net.myId) Game.mePuppet = p;
   }
@@ -467,6 +551,7 @@ function update(dt){
 
   if (Game.world){
     sample();
+    predictSelf(dt);
     processEvents();
     for (const p of Game.puppets.values()){
       p.mouthT = Math.max(0, p.mouthT - dt);
@@ -512,6 +597,7 @@ function update(dt){
   if (Game.boardT <= 0){
     Game.boardT = 0.5;
     updateBoard();
+    updateEditorSafety();
     if (Game.state === 'title'){ updateConnStatus(); updateChronicle(); }
   }
 }
@@ -576,9 +662,9 @@ function updateBoard(){
   }
   const players = Game.world.cells.filter(c => c.name);
   if (!players.length){ ui.board.classList.add('hidden'); return; }
-  players.sort((a, b) => (b.gen - a.gen) || (b.dnaTotal - a.dnaTotal));
+  players.sort((a, b) => (b.lineage - a.lineage) || (b.gen - a.gen) || (b.dnaTotal - a.dnaTotal));
   ui.boardList.innerHTML = players.slice(0, 8).map(p =>
-    `<li class="${p.id === Net.myId ? 'me' : ''}"><span>${esc(p.name)}</span><span>Gen ${ROMAN[p.gen - 1] || 'I'}</span></li>`
+    `<li class="${p.id === Net.myId ? 'me' : ''}"><span>${esc(p.name)}${p.lineage ? ' ' + '★'.repeat(Math.min(3, p.lineage)) : ''}</span><span>Gen ${ROMAN[p.gen - 1] || 'I'}</span></li>`
   ).join('');
   ui.board.classList.remove('hidden');
 }
@@ -673,12 +759,23 @@ function openEditor(){
   };
   refreshEditor();
   ui.editor.classList.remove('hidden');
+  Net.send({ t: 'editor', open: true });
 }
 
 function closeEditor(){
   ui.editor.classList.add('hidden');
   previewCell = null;
   if (Game.state === 'editor') Game.state = 'play';
+  Net.send({ t: 'editor', open: false });
+}
+
+function updateEditorSafety(){
+  if (Game.state !== 'editor' || !ui.editorSafety) return;
+  const cyst = Net.me.cyst || 0;
+  ui.editorSafety.textContent = cyst === 2
+    ? 'encysted — nothing can harm you while you mutate'
+    : 'too agitated to encyst — recently attacked, the soup can still bite';
+  ui.editorSafety.classList.toggle('danger', cyst !== 2);
 }
 
 function renderPreview(){
@@ -793,16 +890,38 @@ function render(){
 
     world.drawParticles(ctx);
 
-    /* name labels in screen space */
+    /* name labels + off-screen human indicators, in screen space */
     ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
-    ctx.font = '11px "Fragment Mono", monospace';
     ctx.textAlign = 'center';
     for (const c of world.cells){
       if (!c.name) continue;
-      const lx = (c.x - Game.cam.x) * z + W / 2;
-      const ly = (c.y - Game.cam.y) * z + H / 2 - c.r * z - 12;
-      ctx.fillStyle = c.id === Net.myId ? 'rgba(125,255,212,0.85)' : 'rgba(234,255,245,0.7)';
-      ctx.fillText(c.name, lx, ly);
+      const isMe = c.id === Net.myId;
+      const label = (isMe ? '' : '◆ ') + c.name +
+        (c.lineage ? ' ' + '★'.repeat(Math.min(3, c.lineage)) : '');
+      const sx2 = (c.x - Game.cam.x) * z + W / 2;
+      const sy2 = (c.y - Game.cam.y) * z + H / 2;
+
+      if (sx2 > -60 && sx2 < W + 60 && sy2 > -60 && sy2 < H + 60){
+        ctx.font = '12px "Fragment Mono", monospace';
+        const ly = sy2 - c.r * z - 13;
+        ctx.fillStyle = 'rgba(3,12,18,0.8)';
+        ctx.fillText(label, sx2 + 1, ly + 1);
+        ctx.fillStyle = isMe ? 'rgba(125,255,212,0.9)' : 'rgba(234,255,245,0.85)';
+        ctx.fillText(label, sx2, ly);
+      } else if (!isMe){
+        /* another human, somewhere out there — point the way */
+        const m = 30;
+        const cx2 = clamp(sx2, m, W - m), cy2 = clamp(sy2, m, H - m);
+        ctx.save();
+        ctx.translate(cx2, cy2);
+        ctx.rotate(Math.PI / 4);
+        ctx.fillStyle = 'rgba(125,255,212,0.85)';
+        ctx.fillRect(-5, -5, 10, 10);
+        ctx.restore();
+        ctx.font = '10px "Fragment Mono", monospace';
+        ctx.fillStyle = 'rgba(125,255,212,0.7)';
+        ctx.fillText(c.name, cx2, cy2 + (sy2 > cy2 ? -14 : 22));
+      }
     }
   }
 
