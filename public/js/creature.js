@@ -178,6 +178,7 @@ class Cell {
       for (const c of world.cells){
         if (c === this || !c.alive) continue;
         if (c.r > this.r * 0.85) continue;
+        if (c.isPlayer && c.r < NEWBIE_R) continue;        // newborn players are beneath notice
         if (c.iframes > 1) continue;                       // freshly spawned or encysted — not worth stalking
         if (th.blackT > 0 && c === th.black) continue;     // gave up on that one recently
         if (nursery && Math.hypot(c.x, c.y) < nursery) continue;

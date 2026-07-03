@@ -603,6 +603,12 @@ function update(dt){
       Net.input(tx, ty, th, false);
     }
     if (Game.playT > 12) ui.hint.classList.add('faded');
+
+    /* first time leaving the safe shallows: one warning, ever */
+    if (Game.mePuppet && Net.radius &&
+        Math.hypot(Game.mePuppet.x, Game.mePuppet.y) > Net.radius * 0.33){
+      Net.onHint({ key: 'shallows', msg: 'you have left the shallows — out here, things hunt' });
+    }
   }
 
   updateCamera(dt);

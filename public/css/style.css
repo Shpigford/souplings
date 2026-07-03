@@ -172,10 +172,16 @@ button kbd{ border-color:rgba(4,18,29,.4); color:inherit; }
 }
 #nameInput:focus{ box-shadow:0 0 20px rgba(125,255,212,.25); }
 #rerollBtn{
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  width:2.6rem;
+  height:2.6rem;
+  padding:0;
+  line-height:1;
   background:transparent;
   color:var(--mint);
   font-size:1.5rem;
-  padding:.15em .4em;
   border:1px solid var(--card-edge);
   border-radius:12px;
 }

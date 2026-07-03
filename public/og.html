@@ -1,0 +1,120 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>SOUPLINGS og card generator</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@1,9..144,300..900&family=Fragment+Mono&display=swap" rel="stylesheet">
+<style>
+  *{ margin:0; padding:0; box-sizing:border-box; }
+  body{ background:#04121d; width:1200px; height:630px; overflow:hidden; position:relative; }
+  canvas{ position:absolute; inset:0; width:1200px; height:630px; }
+  .word{
+    position:absolute; inset:0;
+    display:flex; flex-direction:column; align-items:center; justify-content:center;
+    text-align:center; pointer-events:none;
+    padding-bottom:30px;
+  }
+  h1{
+    font-family:"Fraunces", Georgia, serif;
+    font-style:italic; font-weight:900;
+    font-size:150px; line-height:1;
+    letter-spacing:-.02em;
+    color:#eafff5;
+    text-shadow:0 0 80px rgba(125,255,212,.5), 0 0 18px rgba(125,255,212,.3);
+  }
+  h1 .tilt{ display:inline-block; transform:rotate(8deg) translateY(-.04em); color:#7dffd4; }
+  .tag{
+    font-family:"Fraunces", Georgia, serif;
+    font-weight:300; font-size:34px;
+    color:rgba(234,255,245,.9);
+    margin-top:18px;
+  }
+  .tag em{ color:#7dffd4; }
+  .url{
+    position:absolute; bottom:26px; left:0; right:0;
+    text-align:center;
+    font-family:"Fragment Mono", monospace;
+    font-size:17px; letter-spacing:.25em;
+    color:rgba(125,255,212,.55);
+  }
+</style>
+</head>
+<body>
+<canvas id="og" width="2400" height="1260"></canvas>
+<div class="word">
+  <h1>S<span class="tilt">O</span>UPLINGS</h1>
+  <div class="tag">Begin as a speck. Eat. Evolve. <em>Crawl ashore.</em></div>
+</div>
+<div class="url">SOUPLINGS.FUN &mdash; A MULTIPLAYER TIDE-POOL EVOLUTION</div>
+
+<script src="js/util.js"></script>
+<script src="js/parts.js"></script>
+<script src="js/creature.js"></script>
+<script src="js/world.js"></script>
+<script>
+/* a composed hero scene: the soup at its liveliest, no UI */
+const ctx = document.getElementById('og').getContext('2d');
+ctx.scale(2, 2);
+const T = 2.35;   // a frozen moment with pleasant wobble phases
+
+function mock(spec){
+  const genome = { parts: spec.parts || {}, hue: spec.hue, carn: false, aggro: false };
+  return {
+    x: spec.x, y: spec.y, r: spec.r,
+    dir: spec.dir,
+    vx: Math.cos(spec.dir) * 40, vy: Math.sin(spec.dir) * 40,
+    genome,
+    stats: deriveStats(genome, spec.r, false),
+    wobbleSeed: spec.seed || spec.x * 0.13,
+    mouthT: spec.mouth ? 0.3 : 0, biteT: 0, hurtT: 0, iframes: 0, dashT: 0
+  };
+}
+
+const CREATURES = [
+  /* hero pair flanking the wordmark */
+  mock({ hue: 158, r: 92, x: 172, y: 300, dir: -0.5, parts: { flagellum: 2, eye: 2, cilia: 2, gland: 1 }, seed: 3 }),
+  mock({ hue: 22,  r: 78, x: 1030, y: 320, dir: 3.6, parts: { jaw: 2, spike: 2, flagellum: 1, eye: 1 }, mouth: 1, seed: 8 }),
+  /* supporting cast around the edges */
+  mock({ hue: 262, r: 48, x: 360, y: 90,  dir: 0.4,  parts: { cilia: 2, eye: 1 }, seed: 12 }),
+  mock({ hue: 95,  r: 40, x: 906, y: 76,  dir: 2.6,  parts: { filter: 2, flagellum: 1 }, mouth: 1, seed: 5 }),
+  mock({ hue: 205, r: 56, x: 1110, y: 545, dir: -2.4, parts: { flagellum: 3, eye: 2 }, seed: 21 }),
+  mock({ hue: 305, r: 36, x: 210, y: 545, dir: 1.1,  parts: { spike: 1, cilia: 1 }, seed: 17 }),
+  mock({ hue: 45,  r: 26, x: 585, y: 96,  dir: -1.2, parts: { eye: 1 }, seed: 9 }),
+  mock({ hue: 130, r: 22, x: 700, y: 560, dir: 0.9,  parts: { flagellum: 1 }, seed: 14 }),
+  mock({ hue: 180, r: 18, x: 330, y: 475, dir: 2.2,  parts: {}, seed: 6 })
+];
+
+function render(){
+  Backdrop.draw(ctx, 1200, 630, { x: 0, y: 0 }, T);
+
+  /* a sprinkle of food + dna orbs for color */
+  const w = new World(4000);
+  const FOODS = [
+    ['algae', 90, 120], ['algae', 300, 420], ['algae', 520, 520], ['algae', 780, 90],
+    ['algae', 1120, 180], ['algae', 960, 560], ['algae', 640, 480], ['algae', 60, 480],
+    ['mote', 240, 200], ['mote', 420, 60], ['mote', 860, 480], ['mote', 1150, 420],
+    ['mote', 540, 180], ['mote', 130, 590], ['mote', 1040, 90],
+    ['dna', 340, 555], ['dna', 890, 150], ['dna', 1160, 300]
+  ];
+  for (const [type, x, y] of FOODS){
+    const f = w.spawnFood(type, 0, 0);
+    f.x = x; f.y = y; f.vx = 0; f.vy = 0;
+  }
+  w.drawFood(ctx, T);
+
+  /* one urchin lurking at the rim of frame */
+  w.hazards.push({ x: 1185, y: 60, r: 34, rot: 0.7, spin: 0, seed: 4 });
+  w.drawHazards(ctx, T);
+
+  for (const c of CREATURES) drawCreature(ctx, c, T);
+
+  Backdrop.vignette(ctx, 1200, 630);
+}
+
+document.fonts.ready.then(render);
+render();
+</script>
+</body>
+</html>

@@ -5,7 +5,7 @@
    ============================================================ */
 
 import {
-  Cell, World, PARTS, PART_KEYS, FOOD_TYPES,
+  Cell, World, PARTS, PART_KEYS, FOOD_TYPES, NEWBIE_R,
   randomGenome, partCost, randomSpeciesName, isValidSpeciesName, growthNeedFor,
   rand, randInt, pick, clamp, dist, TAU
 } from './sim.gen.mjs';
@@ -188,6 +188,9 @@ export class Soup {
 
   tryAttack(att, def){
     if (att.attackCd > 0 || !att.alive || !def.alive) return;
+    /* the wild ignores newborn players entirely — snake.io rule:
+       early death should only ever come from your own choices */
+    if (!att.isPlayer && def.isPlayer && def.r < NEWBIE_R) return;
     const armed = att.stats.dmg - 3;
     const bulk = att.r > def.r * 1.15 ? 2 + att.r * 0.05 : 0;
     const dmg = armed + bulk;

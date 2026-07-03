@@ -158,8 +158,9 @@ class World {
   }
 
   spawnHazard(refR){
+    /* urchins keep to deeper water, never the central nursery */
     for (let tries = 0; tries < 12; tries++){
-      const a = rand(0, TAU), d = rand(this.radius * 0.25, this.radius * 0.9);
+      const a = rand(0, TAU), d = rand(this.radius * 0.45, this.radius * 0.9);
       const x = Math.cos(a) * d, y = Math.sin(a) * d;
       let ok = true;
       for (const h of this.hazards) if (dist(x, y, h.x, h.y) < 500){ ok = false; break; }
@@ -247,6 +248,15 @@ class World {
     ctx.beginPath();
     ctx.arc(0, 0, this.radius, 0, TAU);
     ctx.stroke();
+
+    /* the edge of the shallows — beyond this faint ring, things hunt */
+    ctx.setLineDash([26, 34]);
+    ctx.strokeStyle = `rgba(255,122,92,${0.10 + 0.04 * Math.sin(t * 0.5)})`;
+    ctx.lineWidth = 2.5;
+    ctx.beginPath();
+    ctx.arc(0, 0, this.radius * 0.33, t * 0.02, t * 0.02 + TAU);
+    ctx.stroke();
+    ctx.setLineDash([]);
     ctx.restore();
   }
 

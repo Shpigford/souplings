@@ -129,3 +129,8 @@ const ROMAN = ['I', 'II', 'III', 'IV', 'V'];
 /* shared between client and server; tuned for the food-dense shared pool */
 const growthNeedFor = gen => 150 + (gen - 1) * 75;
 const FOOD_TYPES = ['mote', 'algae', 'meat', 'dna'];
+
+/* players below this size are beneath the food chain's notice —
+   gens 1–2 (r 26–39) are for learning and building; the wild only
+   starts hunting you at gen 3, when you can hunt back */
+const NEWBIE_R = 40;
