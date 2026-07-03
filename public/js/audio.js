@@ -87,6 +87,7 @@ const AudioSys = {
   hit(){     this.tone(240, 0.08, 'square', 0.06, 180); },
   dash(){    this.noiseBurst(0.22, 0.12, 900); },
   zap(){     this.tone(1400, 0.08, 'sawtooth', 0.08, 500); this.tone(900, 0.12, 'square', 0.05, 300); },
+  poke(){    this.tone(740, 0.07, 'sine', 0.09, 990); },
   buy(){     [440, 554, 659].forEach((f, i) => setTimeout(() => this.tone(f, 0.16, 'triangle', 0.11), i * 55)); },
   molt(){    [330, 415, 494, 659, 880].forEach((f, i) => setTimeout(() => this.tone(f, 0.3, 'sine', 0.12), i * 90)); },
   death(){   [392, 311, 233, 155].forEach((f, i) => setTimeout(() => this.tone(f, 0.5, 'triangle', 0.12), i * 160)); },

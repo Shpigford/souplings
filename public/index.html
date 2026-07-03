@@ -4,6 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#04121d">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🦠</text></svg>">
 <title>SOUPLINGS — a tide-pool evolution</title>
 <meta name="description" content="A multiplayer evolution game. Begin as a speck. Eat. Evolve. Crawl ashore — before something bigger finds you.">
 <meta property="og:title" content="SOUPLINGS — a multiplayer tide-pool evolution">
@@ -44,6 +45,8 @@
 
   <button id="evolveBtn">Evolve <kbd>E</kbd></button>
 
+  <button id="menuBtn" aria-label="menu and pause">&#8801;</button>
+
   <div id="toasts"></div>
   <div id="hint">move · mouse or arrows&ensp;&ensp;dash · click / space&ensp;&ensp;evolve · E&ensp;&ensp;mute · M</div>
 </div>
@@ -64,7 +67,7 @@
     <div class="nameRow">
       <label for="nameInput" class="mono">specimen</label>
       <input id="nameInput" type="text" readonly title="click to roll a new name" aria-label="species name — click to randomize">
-      <button id="rerollBtn" title="new name" aria-label="randomize name">⚄</button>
+      <button id="rerollBtn" title="new name" aria-label="randomize name"><svg width="18" height="18" viewBox="0 0 18 18" aria-hidden="true"><rect x="1" y="1" width="16" height="16" rx="4.5" fill="none" stroke="currentColor" stroke-width="1.6"/><circle cx="5.6" cy="5.6" r="1.5" fill="currentColor"/><circle cx="12.4" cy="5.6" r="1.5" fill="currentColor"/><circle cx="9" cy="9" r="1.5" fill="currentColor"/><circle cx="5.6" cy="12.4" r="1.5" fill="currentColor"/><circle cx="12.4" cy="12.4" r="1.5" fill="currentColor"/></svg></button>
     </div>
 
     <button id="beginBtn" disabled>Begin as a speck</button>
@@ -83,9 +86,12 @@
        through five generations, and crawl ashore. The soup is shared —
        every creature marked with a <span class="mint">◆</span> is a real person.
        Each emergence adds a <span class="gold">★</span> to your dynasty.</p>
+    <p class="mono dim">move · mouse or arrows &nbsp; dash · click or space &nbsp; evolve · E &nbsp; menu · esc &nbsp; mute · M</p>
     <p class="mono dim">created by Josh Pigford ·
       <a href="https://x.com/Shpigford" target="_blank" rel="noopener">@Shpigford</a> on X</p>
+    <p id="menuSafety" class="mono safety"></p>
     <button id="aboutCloseBtn">Back to the soup</button>
+    <div class="resetRow"><button id="resetBtn" class="ghost danger mono">dissolve everything (full reset)</button></div>
   </div>
 </div>
 

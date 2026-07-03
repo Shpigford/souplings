@@ -568,8 +568,15 @@ export class Soup {
         x = near.cell.x + Math.cos(a) * d;
         y = near.cell.y + Math.sin(a) * d;
         const wd = Math.hypot(x, y);
-        if (wd > WORLD_R * 0.94){ x *= WORLD_R * 0.94 / wd; y *= WORLD_R * 0.94 / wd; }
-        /* the personal food stream never waters the nursery — no camping farms */
+        /* out-of-bounds spawns scatter into random deep water — never
+           pile up along the rim circle (no edge-riding conveyor belts) */
+        if (wd > WORLD_R * 0.92){
+          const a2 = Math.atan2(y, x);
+          const d2 = WORLD_R * rand(0.55, 0.9);
+          x = Math.cos(a2) * d2;
+          y = Math.sin(a2) * d2;
+        }
+        /* and the personal food stream never waters the nursery — no camping farms */
         if (Math.hypot(x, y) < WORLD_R * 0.35){
           const a2 = Math.atan2(y, x) || rand(0, TAU);
           const d2 = WORLD_R * rand(0.37, 0.6);

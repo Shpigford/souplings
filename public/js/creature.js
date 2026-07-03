@@ -245,6 +245,7 @@ function drawCreature(ctx, c, t){
   ctx.save();
   ctx.translate(c.x, c.y);
   ctx.rotate(c.dir);
+  if (c.pokeT > 0) ctx.rotate(Math.sin(t * 30) * 0.07 * clamp(c.pokeT / 0.3, 0, 1));
   if (c.iframes > 0) ctx.globalAlpha = 0.55 + 0.45 * Math.sin(t * 42);
 
   const r = c.r;
@@ -398,8 +399,9 @@ function drawCreature(ctx, c, t){
 
   /* ---- eyes (everyone gets a pair; ocelli make them grand) ---- */
   const eye = lvl('eye');
-  const er = r * (0.12 + eye * 0.035);
-  const blink = ((t * 0.35 + seed) % 2.7) < 0.07 ? 0.15 : 1;
+  let er = r * (0.12 + eye * 0.035);
+  if (c.pokeT > 0) er *= 1.3;   /* poked: eyes go wide */
+  const blink = c.pokeT > 0 ? 1 : (((t * 0.35 + seed) % 2.7) < 0.07 ? 0.15 : 1);
   const spots = [[r * 0.38, -r * 0.34], [r * 0.38, r * 0.34]];
   if (eye >= 2) spots.push([r * 0.55, 0]);
   const px = Math.cos(Math.sin(t * 0.7 + seed)) * er * 0.28 + er * 0.2;

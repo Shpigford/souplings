@@ -134,6 +134,8 @@ button kbd{ border-color:rgba(4,18,29,.4); color:inherit; }
   animation:riseIn .7s .22s ease both;
 }
 #title h1 .tilt{ display:inline-block; transform:rotate(8deg) translateY(-.04em); color:var(--mint); }
+#title h1 .tilt, .aboutCard h2 .tilt{ transition:transform .09s ease; }
+#title h1 .tilt.wink, .aboutCard h2 .tilt.wink{ transform:rotate(8deg) translateY(-.04em) scaleY(.12); }
 
 .tagline{
   margin-top:1.1rem;
@@ -178,13 +180,13 @@ button kbd{ border-color:rgba(4,18,29,.4); color:inherit; }
   width:2.6rem;
   height:2.6rem;
   padding:0;
-  line-height:1;
   background:transparent;
   color:var(--mint);
-  font-size:1.5rem;
   border:1px solid var(--card-edge);
   border-radius:12px;
+  transition:transform .45s cubic-bezier(.3,1.4,.5,1), box-shadow .2s;
 }
+#rerollBtn svg{ display:block; }
 
 #beginBtn{
   font-size:1.25rem;
@@ -321,9 +323,26 @@ button:disabled:hover{ transform:none; box-shadow:none; }
 #evolveBtn:hover{ transform:translateX(-50%) scale(1.05); }
 #evolveBtn.afford{ animation:breathe 1.6s ease-in-out infinite; }
 
+#menuBtn{
+  position:absolute;
+  bottom:calc(1.6rem + env(safe-area-inset-bottom, 0px));
+  right:1.4rem;
+  width:44px; height:44px;
+  padding:0;
+  display:flex; align-items:center; justify-content:center;
+  border-radius:50%;
+  background:rgba(125,255,212,.08);
+  color:var(--mint);
+  border:1px solid var(--card-edge);
+  font-size:1.25rem;
+  line-height:1;
+  backdrop-filter:blur(6px);
+}
+#menuBtn:hover{ transform:scale(1.08); }
+
 #hint{
   position:absolute;
-  bottom:1.9rem; right:1.4rem;
+  bottom:1.9rem; right:4.8rem;
   font-family:var(--font-mono);
   font-size:.64rem;
   letter-spacing:.08em;
@@ -581,6 +600,11 @@ button:disabled:hover{ transform:none; box-shadow:none; }
 }
 .aboutCard a{ color:var(--mint); }
 .aboutCard button{ margin-top:.6rem; }
+#menuSafety{ min-height:1.1em; color:var(--mint); }
+#menuSafety.danger{ color:var(--coral); }
+.resetRow{ margin-top:1.4rem; border-top:1px solid rgba(125,255,212,.12); padding-top:1rem; }
+button.danger{ color:var(--coral); border-color:rgba(255,122,92,.35); font-size:.7rem; }
+button.danger:hover{ box-shadow:0 0 16px rgba(255,122,92,.25); }
 
 /* ============ the chronicle ============ */
 

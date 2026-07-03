@@ -88,7 +88,15 @@ Net.onDead = m => {
   Game.state = 'dead';
   AudioSys.death();
   const s = m.stats;
-  ui.deathBy.textContent = m.by ? `undone by ${m.by}` : '';
+  let by = m.by || '';
+  if (by === 'an urchin'){
+    try {
+      const n = (+localStorage.getItem('soup_urchin_deaths') || 0) + 1;
+      localStorage.setItem('soup_urchin_deaths', String(n));
+      if (n >= 2) by = 'an urchin. possibly the same one';
+    } catch (e) {}
+  }
+  ui.deathBy.textContent = by ? `undone by ${by}` : '';
   ui.deathStats.textContent =
     `survived ${fmtTime(s.survived)} · generation ${ROMAN[s.gen - 1]} · ` +
     `${s.dnaTotal} DNA gathered · ${s.kills} kills`;
@@ -167,6 +175,13 @@ function countDrifters(){
 function updateChronicle(){
   const w = Net.world;
   if (!w || !ui.chronicle){ return; }
+  if (!w.joins){
+    ui.chronicle.innerHTML =
+      `<div class="chronTitle">the chronicle</div>` +
+      `no specks have lived. no specks have died.<br>the soup is holding its breath.`;
+    ui.chronicle.classList.remove('hidden');
+    return;
+  }
   const lines = [
     `<div class="chronTitle">the chronicle</div>`,
     `${w.online} adrift now · ${w.joins} specks have lived`,
@@ -229,12 +244,29 @@ window.addEventListener('pointerdown', e => {
   }
 }, { capture: true });
 
+function pokeSelf(p){
+  p.pokeT = 0.6;
+  p.mouthT = Math.max(p.mouthT, 0.6);
+  AudioSys.poke();
+  if (Game.world) Game.world.burst(p.x, p.y - p.r, 'rgba(190,235,255,0.5)', 3, 40, 0.4, 1.5);
+}
+
 let lastTap = 0, lastTapX = 0, lastTapY = 0;
 canvas.addEventListener('pointerdown', e => {
   Game.mouse.x = e.clientX;
   Game.mouse.y = e.clientY;
   Game.inputMode = 'mouse';
   if (Game.state !== 'play') return;
+  /* tapping directly on your own speck pokes it instead of dashing */
+  const meP = Game.mePuppet;
+  if (meP){
+    const sx = (meP.x - Game.cam.x) * Game.cam.zoom + W / 2;
+    const sy = (meP.y - Game.cam.y) * Game.cam.zoom + H / 2;
+    if (dist(e.clientX, e.clientY, sx, sy) < meP.r * Game.cam.zoom + 6){
+      pokeSelf(meP);
+      return;
+    }
+  }
   if (e.pointerType === 'mouse'){
     tryDash();
   } else {
@@ -260,25 +292,37 @@ function keyboardDir(){
   return [x / m, y / m];
 }
 
+const KONAMI = ['ArrowUp','ArrowUp','ArrowDown','ArrowDown','ArrowLeft','ArrowRight','ArrowLeft','ArrowRight','b','a'];
+let konamiIdx = 0;
+
 window.addEventListener('keydown', e => {
   if (e.target === ui.nameInput){
     if (e.key === 'Enter') beginFromTitle();
     return;
   }
-  if (KEY_DIRS[e.key.length === 1 ? e.key.toLowerCase() : e.key]){
-    Keys.add(e.key.length === 1 ? e.key.toLowerCase() : e.key);
+  const kk = e.key.length === 1 ? e.key.toLowerCase() : e.key;
+  konamiIdx = kk === KONAMI[konamiIdx] ? konamiIdx + 1 : (kk === KONAMI[0] ? 1 : 0);
+  if (konamiIdx === KONAMI.length){
+    konamiIdx = 0;
+    for (const p of Game.puppets.values()) p.pokeT = 0.8;
+    toast('the soup remembers', true);
+  }
+  if (KEY_DIRS[kk]){
+    Keys.add(kk);
     Game.inputMode = 'keys';
     e.preventDefault();
   } else if (e.key === ' '){
-    if (Game.state === 'play'){ tryDash(); e.preventDefault(); }
+    if (Game.state === 'play' && !Game.menuOpen){ tryDash(); e.preventDefault(); }
   } else if (e.key === 'e' || e.key === 'E'){
+    if (Game.menuOpen) return;
     if (Game.state === 'play') openEditor();
     else if (Game.state === 'editor') closeEditor();
   } else if (e.key === 'Escape'){
-    if (Game.state === 'editor') closeEditor();
-    $('about').classList.add('hidden');
+    if (Game.menuOpen) closeMenu();
+    else if (Game.state === 'editor') closeEditor();
+    else if (Game.state === 'play') openMenu();
   } else if (e.key === 'm' || e.key === 'M'){
-    if (AudioSys.ctx) toast(AudioSys.toggleMute() ? 'sound off' : 'sound on', false);
+    if (AudioSys.ctx) toast(AudioSys.toggleMute() ? 'the soup falls silent' : 'the soup burbles again', false);
   } else if (e.key === 'Enter' && Game.state === 'title'){
     beginFromTitle();
   }
@@ -381,7 +425,7 @@ function getPuppet(id){
       genome: { parts: {}, hue: 158, carn: false, aggro: false },
       stats: null, partsStr: '', statsR: 0,
       wobbleSeed: rand(0, 100),
-      mouthT: 0, biteT: 0, hurtT: 0, dashT: 0, iframes: 0,
+      mouthT: 0, biteT: 0, hurtT: 0, dashT: 0, pokeT: 0, iframes: 0,
       name: null, gen: 0, dnaTotal: 0, isPlayer: false
     };
     Game.puppets.set(id, p);
@@ -611,8 +655,8 @@ function update(dt){
       Game.inputT = 0.05;
       const meP = Game.mePuppet;
       let tx, ty, th;
-      if (Game.state === 'editor'){
-        tx = meP.x; ty = meP.y; th = 0;   // coast while mutating
+      if (Game.state === 'editor' || Game.menuOpen){
+        tx = meP.x; ty = meP.y; th = 0;   // coast while mutating or paused
       } else {
         [tx, ty, th] = steerTarget();
       }
@@ -860,12 +904,25 @@ function closeEditor(){
 }
 
 function updateEditorSafety(){
-  if (Game.state !== 'editor' || !ui.editorSafety) return;
-  const cyst = Net.me.cyst || 0;
-  ui.editorSafety.textContent = cyst === 2
-    ? 'encysted — nothing can harm you while you mutate'
-    : 'too agitated to encyst — recently attacked, the soup can still bite';
-  ui.editorSafety.classList.toggle('danger', cyst !== 2);
+  if (Game.state === 'editor' && ui.editorSafety){
+    const cyst = Net.me.cyst || 0;
+    ui.editorSafety.textContent = cyst === 2
+      ? 'encysted — nothing can harm you while you mutate'
+      : 'too agitated to encyst — recently attacked, the soup can still bite';
+    ui.editorSafety.classList.toggle('danger', cyst !== 2);
+  }
+  const ms = $('menuSafety');
+  if (ms){
+    if (Game.menuOpen && Net.joined){
+      const cyst = Net.me.cyst || 0;
+      ms.textContent = cyst === 2
+        ? 'encysted — you are safe while this menu is open'
+        : 'too agitated to encyst — recently attacked, the soup can still bite';
+      ms.classList.toggle('danger', cyst !== 2);
+    } else {
+      ms.textContent = '';
+    }
+  }
 }
 
 function renderPreview(){
@@ -1091,10 +1148,67 @@ function backToTitle(){
   updateConnStatus();
 }
 
-ui.rerollBtn.addEventListener('click', () => { ui.nameInput.value = randomSpeciesName(); });
-ui.nameInput.addEventListener('click', () => { ui.nameInput.value = randomSpeciesName(); });
-$('aboutBtn').addEventListener('click', () => $('about').classList.remove('hidden'));
-$('aboutCloseBtn').addEventListener('click', () => $('about').classList.add('hidden'));
+let diceSpin = 0;
+function rollName(){
+  ui.nameInput.value = randomSpeciesName();
+  diceSpin += 180;
+  ui.rerollBtn.style.transform = `rotate(${diceSpin}deg)`;
+}
+ui.rerollBtn.addEventListener('click', rollName);
+ui.nameInput.addEventListener('click', rollName);
+
+/* the about card doubles as the pause menu: while open in-game, you encyst */
+function menuSafetyFlag(){
+  Net.send({ t: 'editor', open: Game.state === 'editor' || !!Game.menuOpen });
+}
+function openMenu(){
+  Game.menuOpen = true;
+  $('about').classList.remove('hidden');
+  menuSafetyFlag();
+}
+function closeMenu(){
+  Game.menuOpen = false;
+  $('about').classList.add('hidden');
+  menuSafetyFlag();
+}
+$('aboutBtn').addEventListener('click', openMenu);
+$('aboutCloseBtn').addEventListener('click', closeMenu);
+$('menuBtn').addEventListener('click', openMenu);
+
+/* full reset: dissolve the dynasty, two taps required */
+let resetArmed = false;
+$('resetBtn').addEventListener('click', () => {
+  if (!resetArmed){
+    resetArmed = true;
+    $('resetBtn').textContent = 'tap again — this dissolves your dynasty forever';
+    setTimeout(() => {
+      resetArmed = false;
+      $('resetBtn').textContent = 'dissolve everything (full reset)';
+    }, 4000);
+    return;
+  }
+  try { localStorage.clear(); } catch (e) {}
+  location.reload();
+});
+
+/* the O in the wordmark is an eye. it blinks. tell no one. */
+(function(){
+  const eyes = document.querySelectorAll('#title .tilt, .aboutCard .tilt');
+  if (!eyes.length) return;
+  (function wink(){
+    setTimeout(() => {
+      eyes.forEach(o => o.classList.add('wink'));
+      setTimeout(() => eyes.forEach(o => o.classList.remove('wink')), 140);
+      wink();
+    }, rand(20000, 40000));
+  })();
+})();
+
+console.log(
+  '%cSOUPLINGS%c\nfield notes from the shallows\n\nyou have peered beneath the membrane.\nnothing down here but soup.',
+  'font-family: Georgia, serif; font-style: italic; font-weight: 900; font-size: 28px; color: #7dffd4;',
+  'font-family: monospace; font-size: 12px; color: #3f8f77;'
+);
 ui.beginBtn.addEventListener('click', beginFromTitle);
 ui.evolveBtn.addEventListener('click', openEditor);
 ui.resumeBtn.addEventListener('click', closeEditor);
@@ -1104,7 +1218,10 @@ ui.winRestartBtn.addEventListener('click', () => Net.respawn());
 ui.shareDeathBtn.addEventListener('click', shareDeath);
 ui.shareWinBtn.addEventListener('click', shareWin);
 
-document.addEventListener('visibilitychange', () => { Game.last = null; });
+document.addEventListener('visibilitychange', () => {
+  Game.last = null;
+  document.title = document.hidden ? 'the soup simmers on…' : 'SOUPLINGS — a tide-pool evolution';
+});
 
 /* touch-first copy for touch-first devices */
 if (window.matchMedia && matchMedia('(pointer: coarse)').matches){
