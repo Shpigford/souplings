@@ -70,6 +70,7 @@ Net.onWelcome = () => {
 
 Net.onJoined = m => {
   Game.myName = m.name;
+  try { localStorage.setItem('soup_name', m.name); } catch (e) {}
   ui.specName.textContent = m.name;
   ui.previewCaption.textContent = m.name;
   ui.title.classList.add('hidden');
@@ -545,8 +546,19 @@ function processEvents(){
           AudioSys.molt();
           Game.shake = 10;
           genSplash(ev.gen);
+          const unlocked = PART_KEYS.filter(k => (PARTS[k].gen || 1) === ev.gen);
+          for (const k of unlocked) toast(`the chamber grows — ${PARTS[k].name} unlocked`, true);
+          refreshEditor();
           if (ev.gen === 5) toast('final generation — fill the bar once more to leave the water', true);
         }
+        break;
+      }
+      case 'ink':
+        world.inkCloud(ev.x, ev.y);
+        break;
+      case 'zap': {
+        world.burst(ev.x, ev.y, 'rgba(190,225,255,0.95)', 10, 170, 0.4, 2.5);
+        if (ev.tgt === Net.myId) AudioSys.zap();
         break;
       }
       case 'ashore':
@@ -790,11 +802,17 @@ function refreshEditor(){
     const def = PARTS[key];
     const lvl = parts[key] || 0;
     const cost = partCost(key, lvl);
+    const locked = (def.gen || 1) > Net.me.gen;
+    card.classList.toggle('locked', locked);
     const pips = card.querySelector('.pips');
     pips.innerHTML = Array.from({ length: def.max }, (_, i) =>
       `<span class="${i < lvl ? '' : 'off'}">●</span>`).join('');
     const btn = card.querySelector('.buyBtn');
-    if (cost === null){
+    if (locked){
+      btn.textContent = `Gen ${ROMAN[(def.gen || 1) - 1]}`;
+      btn.disabled = true;
+      btn.classList.remove('maxed');
+    } else if (cost === null){
       btn.textContent = 'MAX';
       btn.disabled = true;
       btn.classList.add('maxed');
@@ -922,6 +940,27 @@ function drawPartIcon(g, key){
         g.stroke();
       }
       break;
+    case 'ink':
+      g.beginPath();
+      g.moveTo(c, 13);
+      g.bezierCurveTo(35, 24, 35, 34, c, 38);
+      g.bezierCurveTo(17, 34, 17, 24, c, 13);
+      g.closePath();
+      g.fill();
+      break;
+    case 'volt':
+      g.beginPath();
+      g.moveTo(30, 12); g.lineTo(20, 27); g.lineTo(26, 28); g.lineTo(21, 40); g.lineTo(33, 25); g.lineTo(27, 24);
+      g.closePath();
+      g.fill();
+      break;
+    case 'osmo':
+      g.beginPath(); g.arc(c, c, 14, 0, TAU); g.stroke();
+      g.setLineDash([4, 3]);
+      g.beginPath(); g.arc(c, c, 9, 0, TAU); g.stroke();
+      g.setLineDash([]);
+      g.beginPath(); g.arc(c, c, 3, 0, TAU); g.fill();
+      break;
   }
 }
 
@@ -1008,12 +1047,16 @@ function beginFromTitle(){
   Net.join(ui.nameInput.value.trim());
 }
 
+function savedName(){
+  try { return localStorage.getItem('soup_name'); } catch (e) { return null; }
+}
+
 function backToTitle(){
   ui.death.classList.add('hidden');
   ui.win.classList.add('hidden');
   ui.hud.classList.add('hidden');
   ui.title.classList.remove('hidden');
-  ui.nameInput.value = randomSpeciesName();
+  ui.nameInput.value = savedName() || randomSpeciesName();
   Game.state = 'title';
   updateConnStatus();
 }
@@ -1039,7 +1082,7 @@ if (window.matchMedia && matchMedia('(pointer: coarse)').matches){
   ui.controlsNote.textContent = 'touch to swim · double-tap to dash';
 }
 
-ui.nameInput.value = randomSpeciesName();
+ui.nameInput.value = savedName() || randomSpeciesName();
 buildEditor();
 updateConnStatus();
 Net.connect();

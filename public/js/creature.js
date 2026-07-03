@@ -424,6 +424,48 @@ function drawCreature(ctx, c, t){
     ctx.fill();
   }
 
+  /* ---- ink sac: a pocket of night ---- */
+  if (lvl('ink') > 0){
+    ctx.fillStyle = 'rgba(8,12,20,0.85)';
+    ctx.beginPath();
+    ctx.ellipse(-r * 0.38, -r * 0.22, r * 0.17, r * 0.13, 0.5, 0, TAU);
+    ctx.fill();
+    ctx.fillStyle = 'rgba(120,160,200,0.25)';
+    ctx.beginPath();
+    ctx.arc(-r * 0.42, -r * 0.27, r * 0.045, 0, TAU);
+    ctx.fill();
+  }
+
+  /* ---- volt organ: crackling arcs ---- */
+  const voltLvl = lvl('volt');
+  if (voltLvl > 0){
+    const buzz = 0.5 + 0.5 * Math.sin(t * 11 + seed * 3);
+    ctx.strokeStyle = `rgba(170,220,255,${0.45 + 0.5 * buzz})`;
+    ctx.lineWidth = Math.max(1, r * 0.035);
+    ctx.lineCap = 'round';
+    for (let v = 0; v < voltLvl; v++){
+      const bx = r * 0.05 - v * r * 0.35, by = -r * 0.42 + v * r * 0.15;
+      const s2 = r * 0.13;
+      ctx.beginPath();
+      ctx.moveTo(bx - s2, by - s2);
+      ctx.lineTo(bx + s2 * 0.3, by - s2 * 0.2);
+      ctx.lineTo(bx - s2 * 0.3, by + s2 * 0.2);
+      ctx.lineTo(bx + s2, by + s2);
+      ctx.stroke();
+    }
+  }
+
+  /* ---- osmotic core: a hungry ring around the nucleus ---- */
+  if (lvl('osmo') > 0){
+    ctx.strokeStyle = `hsla(${h},85%,82%,${0.3 + 0.15 * Math.sin(t * 2 + seed)})`;
+    ctx.lineWidth = Math.max(1, r * 0.03);
+    ctx.setLineDash([r * 0.12, r * 0.09]);
+    ctx.beginPath();
+    ctx.arc(-r * 0.15, r * 0.05, r * 0.4, t * 0.4 + seed, t * 0.4 + seed + TAU);
+    ctx.stroke();
+    ctx.setLineDash([]);
+  }
+
   /* ---- hurt flash ---- */
   if (c.hurtT > 0){
     blobPath(ctx, pts);

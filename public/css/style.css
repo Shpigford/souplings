@@ -465,6 +465,8 @@ button:disabled:hover{ transform:none; box-shadow:none; }
   transition:border-color .2s, background .2s;
 }
 .partCard:hover{ border-color:rgba(125,255,212,.35); background:rgba(125,255,212,.08); }
+.partCard.locked{ opacity:.45; filter:saturate(.5); }
+.partCard.locked:hover{ border-color:rgba(125,255,212,.14); background:rgba(125,255,212,.045); }
 .partCard canvas{ grid-row:1 / span 2; width:52px; height:52px; }
 
 .partName{ font-weight:600; font-size:1rem; }

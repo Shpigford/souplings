@@ -34,6 +34,19 @@ const PARTS = {
   gland: {
     name: 'Biolume Gland', max: 1, cost: [30],
     desc: 'A soft lantern. Nearby morsels drift toward your light.'
+  },
+  /* exotic organs — each generation opens a new shelf in the chamber */
+  ink: {
+    name: 'Ink Sac', max: 1, cost: [40], gen: 2,
+    desc: 'A pocket of night. Dashing vents a blinding cloud — wild hunters lose the trail.'
+  },
+  volt: {
+    name: 'Volt Organ', max: 2, cost: [50, 85], gen: 3,
+    desc: 'A rude surprise. Anything that bites you gets bitten back.'
+  },
+  osmo: {
+    name: 'Osmotic Core', max: 2, cost: [60, 95], gen: 4,
+    desc: 'Waste nothing. Every meal feeds your growth further.'
   }
 };
 
@@ -63,7 +76,9 @@ function deriveStats(genome, r, isPlayer){
     zoomOut: 1 + 0.14 * g('eye'),
     dashCd: Math.max(1.1, 2.6 - 0.5 * g('cilia')),
     lure: g('gland') ? 150 * sizeF : 0,
-    pickup: r + 26 + (g('gland') ? 60 * sizeF : 0)
+    pickup: r + 26 + (g('gland') ? 60 * sizeF : 0),
+    growthMul: 1 + 0.2 * g('osmo'),
+    volt: 8 * g('volt')
   };
 }
 

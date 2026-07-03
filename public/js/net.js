@@ -106,10 +106,23 @@ const Net = {
     }
   },
 
+  /* stable anonymous identity — the dynasty survives page refreshes */
+  token(){
+    try {
+      let t = localStorage.getItem('soup_token');
+      if (!t){
+        t = [...crypto.getRandomValues(new Uint8Array(16))]
+          .map(b => b.toString(16).padStart(2, '0')).join('');
+        localStorage.setItem('soup_token', t);
+      }
+      return t;
+    } catch (e) { return null; }
+  },
+
   send(o){
     if (this.ws && this.ws.readyState === 1) this.ws.send(JSON.stringify(o));
   },
-  join(name){ this.send({ t: 'join', name }); },
+  join(name){ this.send({ t: 'join', name, token: this.token() }); },
   input(tx, ty, th, dash){
     this.send({ t: 'input', tx: Math.round(tx), ty: Math.round(ty), th: +th.toFixed(2), dash: !!dash });
   },

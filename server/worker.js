@@ -87,7 +87,7 @@ export class Soup {
     ws.addEventListener('message', ev => {
       let m;
       try { m = JSON.parse(ev.data); } catch (e) { return; }
-      try { this.handleMessage(cl, m); } catch (e) { console.error('msg error', e); }
+      Promise.resolve(this.handleMessage(cl, m)).catch(e => console.error('msg error', e));
     });
     const bye = () => this.dropClient(ws);
     ws.addEventListener('close', bye);
@@ -182,7 +182,7 @@ export class Soup {
     cell.mouthT = 0.35;
     if (cl){
       const run = cl.run, st = cell.stats;
-      run.growth += f.mass * (herb ? st.algaeMul : st.meatMul);
+      run.growth += f.mass * (herb ? st.algaeMul : st.meatMul) * (st.growthMul || 1);
       run.dna += f.dna;
       run.dnaTotal += f.dna;
       run.eaten++;
@@ -219,6 +219,15 @@ export class Soup {
         e: 'hit', x: Math.round(def.x), y: Math.round(def.y),
         hue: Math.round(def.genome.hue), att: att.id, tgt: def.id
       });
+      /* volt organ: biting this one was a mistake */
+      const volt = def.stats.volt || 0;
+      if (volt && att.alive){
+        att.takeDamage(volt, def.x, def.y);
+        att.lastHitBy = def;
+        if (att.client) att.client.lastDamageAt = Date.now();
+        this.events.push({ e: 'zap', x: Math.round(att.x), y: Math.round(att.y), tgt: att.id });
+        if (!att.alive) this.killCell(att, def);
+      }
     }
     if (!def.alive) this.killCell(def, att);
   }
@@ -306,7 +315,12 @@ export class Soup {
 
   /* -------------------- messages -------------------- */
 
-  handleMessage(cl, m){
+  saveProfile(cl){
+    if (!cl.token) return;
+    this.state.storage.put('prof:' + cl.token, { lineage: cl.lineage, name: cl.name, t: Date.now() });
+  }
+
+  async handleMessage(cl, m){
     switch (m.t){
       case 'ping':
         /* no-op — the incoming message itself resets the DO's CPU allowance */
@@ -317,7 +331,14 @@ export class Soup {
       case 'join': {
         /* only generator-grammar names are accepted — no typed names, no moderation problem */
         const name = isValidSpeciesName(m.name) ? m.name : randomSpeciesName();
+        /* restore the dynasty: lineage persists per anonymous device token */
+        if (typeof m.token === 'string' && /^[0-9a-f]{16,64}$/.test(m.token)){
+          cl.token = m.token;
+          const prof = await this.state.storage.get('prof:' + m.token);
+          if (prof && prof.lineage) cl.lineage = prof.lineage;
+        }
         this.freshRun(cl, name);
+        this.saveProfile(cl);
         this.events.push({ e: 'join', name });
         this.stats.joins++;
         this.saveStats();
@@ -329,11 +350,27 @@ export class Soup {
         const tx = +m.tx, ty = +m.ty, th = +m.th;
         if (!Number.isFinite(tx) || !Number.isFinite(ty) || !Number.isFinite(th)) break;
         cl.input = { tx, ty, th: clamp(th, 0, 1) };
-        if (m.dash && cl.cell.dash()) this.events.push({ e: 'dash', id: cl.id });
+        if (m.dash && cl.cell.dash()){
+          this.events.push({ e: 'dash', id: cl.id });
+          /* ink sac: the dash vents a blinding cloud — wild hunters lose the trail */
+          if (cl.genome.parts.ink){
+            this.events.push({ e: 'ink', x: Math.round(cl.cell.x), y: Math.round(cl.cell.y) });
+            for (const c of this.world.cells){
+              if (c.isPlayer || !c.alive || !c.think) continue;
+              if (c.think.mode === 'hunt' && c.think.target === cl.cell){
+                c.think.black = cl.cell;
+                c.think.blackT = 8;
+                c.think.huntT = 0;
+                c.think.mode = 'wander';
+              }
+            }
+          }
+        }
         break;
       }
       case 'buy': {
         if (!cl.alive || !cl.cell || !PARTS[m.key]) break;
+        if ((PARTS[m.key].gen || 1) > cl.run.gen) break;   // not yet unlocked
         const lvl = cl.genome.parts[m.key] || 0;
         const cost = partCost(m.key, lvl);
         if (cost === null || cost > cl.run.dna) break;
@@ -489,6 +526,7 @@ export class Soup {
           this.stats.dynasty = { name: cl.name, n: cl.lineage };
         }
         this.saveStats();
+        this.saveProfile(cl);
         rs.lineage = cl.lineage;
         this.send(cl, { t: 'ashore', stats: rs });
       } else {

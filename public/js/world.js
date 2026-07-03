@@ -185,6 +185,19 @@ class World {
     }
   }
 
+  inkCloud(x, y){
+    for (let i = 0; i < 22; i++){
+      const a = rand(0, TAU), s = rand(20, 120);
+      this.particles.push({
+        x, y,
+        vx: Math.cos(a) * s, vy: Math.sin(a) * s,
+        life: rand(1.2, 2.4), maxLife: 2.4,
+        r: rand(8, 26),
+        color: 'rgba(6,10,18,0.88)', rise: 0, dark: true
+      });
+    }
+  }
+
   bubble(x, y, r){
     this.particles.push({
       x, y, vx: rand(-4, 4), vy: rand(-10, -4),
@@ -357,8 +370,9 @@ class World {
 
   drawParticles(ctx){
     ctx.save();
-    ctx.globalCompositeOperation = 'lighter';
     for (const p of this.particles){
+      /* ink is darkness, not light — it needs normal compositing */
+      ctx.globalCompositeOperation = p.dark ? 'source-over' : 'lighter';
       ctx.globalAlpha = clamp(p.life / p.maxLife, 0, 1) * 0.85;
       ctx.fillStyle = p.color;
       ctx.beginPath();
