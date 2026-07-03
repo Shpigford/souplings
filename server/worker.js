@@ -47,11 +47,16 @@ export class Soup {
     this.tickN = 0;
     this.hueCursor = 0;
     this.timer = null;
-    /* the chronicle: persistent all-time world stats */
+    /* the chronicle: persistent all-time world stats + today's records */
     this.stats = { joins: 0, deaths: 0, ashore: 0, pvp: 0, fastest: null, deadliest: null, dynasty: null };
+    this.daily = null;
+    this.goldT = 60 + Math.random() * 60;
+    this.invites = new Map();
     state.blockConcurrencyWhile(async () => {
       const saved = await state.storage.get('stats');
       if (saved) this.stats = { ...this.stats, ...saved };
+      const day = await state.storage.get('daily');
+      if (day) this.daily = day;
     });
     this.seedWorld();
   }
@@ -60,8 +65,20 @@ export class Soup {
     this.state.storage.put('stats', this.stats);
   }
 
+  dayKey(){ return new Date().toISOString().slice(0, 10); }
+
+  ensureDaily(){
+    const k = this.dayKey();
+    if (!this.daily || this.daily.date !== k){
+      this.daily = { date: k, ashore: 0, deaths: 0, fastest: null, deadliest: null };
+    }
+    return this.daily;
+  }
+
+  saveDaily(){ this.state.storage.put('daily', this.daily); }
+
   worldStats(){
-    return { ...this.stats, online: this.alivePlayers().length };
+    return { ...this.stats, online: this.alivePlayers().length, daily: this.ensureDaily() };
   }
 
   /* -------------------- connections -------------------- */
@@ -137,6 +154,13 @@ export class Soup {
     }
   }
 
+  spawnGoldenMote(){
+    const a = rand(0, TAU), d = WORLD_R * rand(0.4, 0.75);
+    const f = this.world.spawnFood('gold', Math.cos(a) * d, Math.sin(a) * d);
+    f.decay = 50;
+    this.events.push({ e: 'goldSpawn', x: Math.round(f.x), y: Math.round(f.y) });
+  }
+
   spawnAICell(x, y){
     /* the shallows near the center stay gentle; monsters live at the rim */
     const band = Math.hypot(x, y) / WORLD_R;
@@ -183,13 +207,25 @@ export class Soup {
     cell.mouthT = 0.35;
     if (cl){
       const run = cl.run, st = cell.stats;
+      /* feeding frenzy: six meals in eight seconds ignites you */
+      const now = Date.now();
+      cl.eats = (cl.eats || []).filter(t2 => now - t2 < 8000);
+      cl.eats.push(now);
+      if (cl.frenzyUntil > now){
+        cl.frenzyUntil = now + 3000;   // keep eating, keep burning
+      } else if (cl.eats.length >= 6){
+        cl.frenzyUntil = now + 5000;
+        this.events.push({ e: 'frenzy', id: cl.id });
+      }
+      const fMul = cl.frenzyUntil > now ? 2 : 1;
       run.growth += f.mass * (herb ? st.algaeMul : st.meatMul) * (st.growthMul || 1);
-      const dnaGain = Math.round(f.dna * (st.dnaMul || 1));
+      const dnaGain = Math.round(f.dna * (st.dnaMul || 1) * fMul);
       run.dna += dnaGain;
       run.dnaTotal += dnaGain;
       run.eaten++;
       cell.r = run.baseR * (1 + 0.16 * clamp(run.growth / run.need, 0, 1));
       cell.recalc();
+      if (f.type === 'gold') this.events.push({ e: 'goldgone', name: cl.name, id: cl.id });
     }
     this.events.push({ e: 'eat', x: Math.round(f.x), y: Math.round(f.y), ft: f.type, who: cl ? cl.id : 0 });
   }
@@ -241,7 +277,9 @@ export class Soup {
     this.events.push({
       e: 'die', x: Math.round(c.x), y: Math.round(c.y),
       hue: Math.round(c.genome.hue), r: Math.round(c.r),
-      who: c.client ? c.client.id : 0, name: c.client ? c.client.name : undefined
+      who: c.client ? c.client.id : 0, name: c.client ? c.client.name : undefined,
+      by: killer && killer.client ? killer.client.id : 0,
+      byName: killer && killer.client ? killer.client.name : undefined
     });
     /* player deaths are gold rushes — the bigger the life, the bigger the feast */
     const isPlayerDeath = !!c.client;
@@ -256,14 +294,26 @@ export class Soup {
     }
     if (killer && killer.client){
       killer.client.run.kills++;
-      if (c.client){ this.stats.pvp++; this.saveStats(); }
+      if (c.client){
+        this.stats.pvp++;
+        this.saveStats();
+        /* vengeance: killing your nemesis pays, loudly */
+        if (killer.client.nemesisId === c.client.id){
+          killer.client.run.dna += 40;
+          killer.client.run.dnaTotal += 40;
+          killer.client.nemesisId = 0;
+          this.events.push({ e: 'vengeance', a: killer.client.name, t: c.client.name, id: killer.client.id });
+        }
+        c.client.nemesisId = killer.client.id;
+        c.client.nemesisName = killer.client.name;
+      }
     }
     if (c.client){
       let by;
       if (killer && killer.client) by = killer.client.name;
       else if (killer) by = killer.genome.carn ? 'a wild predator' : 'a territorial grazer';
       else by = 'an urchin';
-      this.playerDied(c.client, by);
+      this.playerDied(c.client, by, killer ? killer.id : 0);
     }
   }
 
@@ -275,22 +325,32 @@ export class Soup {
     };
   }
 
-  playerDied(cl, by){
+  playerDied(cl, by, killerId){
     cl.alive = false;
     cl.cell = null;
     cl.run.deaths++;
     cl.run.dna = Math.floor(cl.run.dna * 0.7);
     cl.run.growth *= 0.85;
     this.stats.deaths++;
+    const day = this.ensureDaily();
+    day.deaths++;
+    if (cl.run.kills > (day.deadliest ? day.deadliest.n : 0)) day.deadliest = { name: cl.name, n: cl.run.kills };
+    this.saveDaily();
     if (cl.run.kills > (this.stats.deadliest ? this.stats.deadliest.n : 0)){
       this.stats.deadliest = { name: cl.name, n: cl.run.kills };
     }
     this.saveStats();
-    this.send(cl, { t: 'dead', stats: this.runStats(cl), by });
+    this.send(cl, {
+      t: 'dead', stats: this.runStats(cl), by,
+      killerId: killerId || 0,
+      nemesis: cl.nemesisName || undefined
+    });
   }
 
-  spawnPlayerCell(cl){
-    const [x, y] = this.safeSpot(cl.run.baseR);
+  spawnPlayerCell(cl, near){
+    const [x, y] = near
+      ? [near.cell.x + rand(-180, 180), near.cell.y + rand(-180, 180)]
+      : this.safeSpot(cl.run.baseR);
     const c = new Cell({ x, y, r: cl.run.baseR, genome: cl.genome, isPlayer: true });
     c.id = cl.id;
     c.client = cl;
@@ -305,7 +365,7 @@ export class Soup {
     cl.input = { tx: x, ty: y, th: 0 };
   }
 
-  freshRun(cl, name){
+  freshRun(cl, name, near){
     if (cl.cell){ cl.cell.alive = false; cl.cell.processed = true; cl.cell = null; }
     if (name) cl.name = name;
     if (!cl.name) cl.name = randomSpeciesName();   // respawn on a fresh socket, no join first
@@ -317,7 +377,7 @@ export class Soup {
       joinT: Date.now(), eaten: 0, kills: 0, deaths: 0, dnaTotal: heirloom
     };
     cl.ashore = false;
-    this.spawnPlayerCell(cl);
+    this.spawnPlayerCell(cl, near);
     this.send(cl, { t: 'joined', name: cl.name, lineage: cl.lineage });
   }
 
@@ -372,6 +432,14 @@ export class Soup {
       case 'editor':
         cl.editorOpen = !!m.open;
         break;
+      case 'invite': {
+        if (!cl.inviteCode){
+          cl.inviteCode = Math.random().toString(36).slice(2, 8);
+          this.invites.set(cl.inviteCode, cl);
+        }
+        this.send(cl, { t: 'invite', code: cl.inviteCode });
+        break;
+      }
       case 'ident': {
         /* live identity update from the pause menu */
         if (!cl.run) break;
@@ -387,7 +455,10 @@ export class Soup {
         }
         const wHue = +m.hue;
         const hOpt = HUE_UNLOCKS.find(u => u[0] === wHue);
-        if (hOpt && cl.lineage >= hOpt[1]){
+        if (wHue === 335){
+          cl.hue = 335;
+          if (cl.genome) cl.genome.hue = 335;
+        } else if (hOpt && cl.lineage >= hOpt[1]){
           cl.hue = wHue;
           if (cl.genome) cl.genome.hue = wHue;
         }
@@ -419,11 +490,22 @@ export class Soup {
         /* dynasty hues + trails: only what the lineage has earned */
         const wantHue = +m.hue;
         const hueOpt = HUE_UNLOCKS.find(u => u[0] === wantHue);
-        if (hueOpt && cl.lineage >= hueOpt[1]) cl.hue = wantHue;
+        if (wantHue === 335) cl.hue = 335;   // the share-surfaced color
+        else if (hueOpt && cl.lineage >= hueOpt[1]) cl.hue = wantHue;
         const wantTrail = +m.trail;
         const trailOpt = TRAIL_UNLOCKS.find(u => u[0] === wantTrail);
         if (trailOpt && cl.lineage >= trailOpt[1]) cl.trail = wantTrail;
-        this.freshRun(cl, name);
+        /* buddy links: surface beside the friend who invited you */
+        let near = null;
+        if (typeof m.buddy === 'string' && this.invites.has(m.buddy)){
+          const host = this.invites.get(m.buddy);
+          if (host !== cl && host.alive && host.cell) near = host;
+        }
+        this.freshRun(cl, name, near);
+        if (near){
+          this.send(cl, { t: 'toast', msg: `you surface beside ${near.name}` });
+          this.send(near, { t: 'toast', msg: `${cl.name} surfaces beside you` });
+        }
         this.saveProfile(cl);
         this.events.push({ e: 'join', name });
         this.stats.joins++;
@@ -484,6 +566,16 @@ export class Soup {
           cl.cell.hp = +m.hp;
           if (cl.cell.hp <= 0){ cl.cell.alive = false; this.killCell(cl.cell, null); }
         }
+        if (m.frenzy){
+          cl.frenzyUntil = Date.now() + 5000;
+          this.events.push({ e: 'frenzy', id: cl.id });
+        }
+        if (m.gold) this.spawnGoldenMote();
+        if (Array.isArray(m.tp) && cl.cell){
+          cl.cell.x = +m.tp[0] || 0;
+          cl.cell.y = +m.tp[1] || 0;
+          cl.input = { tx: cl.cell.x, ty: cl.cell.y, th: 0 };
+        }
         break;
       }
     }
@@ -503,6 +595,7 @@ export class Soup {
 
     for (const cl of this.clients.values()){
       if (!cl.alive || !cl.cell) continue;
+      cl.cell.frenzy = cl.frenzyUntil > Date.now();
       /* encysted: safe & stationary while mutating — but only if calm */
       if (cl.editorOpen && Date.now() - (cl.lastDamageAt || 0) > 4000){
         cl.cyst = 2;
@@ -613,6 +706,10 @@ export class Soup {
         const rs = this.runStats(cl);
         this.stats.ashore++;
         cl.lineage++;
+        const day = this.ensureDaily();
+        day.ashore++;
+        if (!day.fastest || rs.survived < day.fastest.s) day.fastest = { name: cl.name, s: rs.survived };
+        this.saveDaily();
         if (!this.stats.fastest || rs.survived < this.stats.fastest.s){
           this.stats.fastest = { name: cl.name, s: rs.survived };
         }
@@ -639,9 +736,37 @@ export class Soup {
       }
     }
 
+    const players = this.alivePlayers();
+
+    /* the golden mote: rare, radiant, cowardly, announced to everyone */
+    if (players.length > 0){
+      this.goldT -= dt;
+      if (this.goldT <= 0){
+        this.goldT = 90 + Math.random() * 60;
+        this.spawnGoldenMote();
+      }
+    }
+    for (const f of world.food){
+      if (f.type !== 'gold') continue;
+      let near = null, nd = 320;
+      for (const cl2 of players){
+        const d2 = dist(f.x, f.y, cl2.cell.x, cl2.cell.y);
+        if (d2 < nd){ nd = d2; near = cl2.cell; }
+      }
+      if (near){
+        const dx = f.x - near.x, dy = f.y - near.y;
+        const dd = Math.hypot(dx, dy) || 1;
+        f.vx += dx / dd * 520 * dt;
+        f.vy += dy / dd * 520 * dt;
+        const sp2 = Math.hypot(f.vx, f.vy);
+        if (sp2 > 235){ f.vx *= 235 / sp2; f.vy *= 235 / sp2; }
+      }
+      const wd2 = Math.hypot(f.x, f.y);
+      if (wd2 > WORLD_R * 0.9){ f.vx -= f.x / wd2 * 300 * dt; f.vy -= f.y / wd2 * 300 * dt; }
+    }
+
     /* wildlife backfills the soup when humans are scarce; as real players
        arrive, the wild thins out and the humans ARE the ecosystem */
-    const players = this.alivePlayers();
     const targetFauna = Math.max(10, 22 - 5 * Math.max(0, players.length - 1));
     if (world.cells.filter(c => !c.isPlayer).length < targetFauna){
       for (let tries = 0; tries < 6; tries++){
@@ -704,7 +829,7 @@ export class Soup {
         +c.dir.toFixed(2), +c.r.toFixed(1),
         Math.ceil(c.hp), Math.round(c.stats.maxHp),
         Math.round(c.genome.hue), partsStr(c.genome.parts),
-        (c.genome.carn ? 1 : 0) | (c.genome.aggro ? 2 : 0) | (c.isPlayer ? 4 : 0)
+        (c.genome.carn ? 1 : 0) | (c.genome.aggro ? 2 : 0) | (c.isPlayer ? 4 : 0) | (c.frenzy ? 8 : 0)
       ];
       if (c.client) row.push(c.client.name, c.client.run.gen, c.client.run.dnaTotal, c.client.lineage, c.client.trail || 0);
       return row;
@@ -725,7 +850,8 @@ export class Soup {
         if (cl.run){
           cl.ws.send(JSON.stringify({
             t: 'you', dna: cl.run.dna, growth: +cl.run.growth.toFixed(1),
-            need: cl.run.need, gen: cl.run.gen, cyst: cl.cyst || 0
+            need: cl.run.need, gen: cl.run.gen, cyst: cl.cyst || 0,
+            frenzy: cl.frenzyUntil > Date.now() ? 1 : 0
           }));
         }
       } catch (e) { /* dropped mid-send; close handler cleans up */ }

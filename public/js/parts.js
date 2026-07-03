@@ -154,7 +154,10 @@ const ROMAN = ['I', 'II', 'III', 'IV', 'V'];
 /* shared between client and server — an exponential ladder so late
    generations are an expedition, not a snack break */
 const growthNeedFor = gen => Math.round(140 * Math.pow(1.75, gen - 1));
-const FOOD_TYPES = ['mote', 'algae', 'meat', 'dna'];
+const FOOD_TYPES = ['mote', 'algae', 'meat', 'dna', 'gold'];
+
+/* label epithets for long dynasties */
+const DYNASTY_TITLES = [[10, 'the Eternal'], [5, 'the Undying'], [2, 'the Twice-Risen']];
 
 /* players below this size are beneath the food chain's notice —
    gens 1–2 (r 26–39) are for learning and building; the wild only

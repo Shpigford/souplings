@@ -20,7 +20,7 @@ const Net = {
 
   /* handlers assigned by game.js */
   onWelcome: null, onJoined: null, onDead: null,
-  onAshore: null, onBuyok: null, onStatus: null, onHint: null, onToast: null, onRenamed: null,
+  onAshore: null, onBuyok: null, onStatus: null, onHint: null, onToast: null, onRenamed: null, onInvite: null,
 
   url(){
     return (location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host + '/ws';
@@ -109,6 +109,9 @@ const Net = {
       case 'renamed':
         this.onRenamed && this.onRenamed(m);
         break;
+      case 'invite':
+        this.onInvite && this.onInvite(m);
+        break;
     }
   },
 
@@ -128,14 +131,15 @@ const Net = {
   send(o){
     if (this.ws && this.ws.readyState === 1) this.ws.send(JSON.stringify(o));
   },
-  join(name){
+  join(name, buddy){
     let hue = 0, trail = 0;
     try {
       hue = +localStorage.getItem('soup_hue') || 0;
       trail = +localStorage.getItem('soup_trail') || 0;
     } catch (e) {}
-    this.send({ t: 'join', name, token: this.token(), hue, trail });
+    this.send({ t: 'join', name, token: this.token(), hue, trail, buddy: buddy || undefined });
   },
+  invite(){ this.send({ t: 'invite' }); },
   ident(name, hue, trail){ this.send({ t: 'ident', name, hue, trail }); },
   input(tx, ty, th, dash){
     this.send({ t: 'input', tx: Math.round(tx), ty: Math.round(ty), th: +th.toFixed(2), dash: !!dash });

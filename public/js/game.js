@@ -80,6 +80,7 @@ Net.onWelcome = () => {
 
 Net.onJoined = m => {
   Game.myName = m.name;
+  Game.spectateId = 0;
   try {
     localStorage.setItem('soup_name', m.name);
     localStorage.setItem('soup_lineage', String(m.lineage || 0));
@@ -110,6 +111,8 @@ Net.onDead = m => {
       if (n >= 2) by = 'an urchin. possibly the same one';
     } catch (e) {}
   }
+  Game.spectateId = m.killerId || 0;
+  if (m.nemesis && by === m.nemesis) by = `${by} — they are still out there`;
   ui.deathBy.textContent = by ? `undone by ${by}` : '';
   const b = loadBests();
   let newBest = false;
@@ -241,12 +244,18 @@ function updateChronicle(){
   if (w.fastest) lines.push(`<span class="rec">fastest emergence — ${esc(w.fastest.name)}, ${fmtTime(w.fastest.s)}</span>`);
   if (w.deadliest && w.deadliest.n > 0) lines.push(`<span class="rec">deadliest — ${esc(w.deadliest.name)}, ${w.deadliest.n} kills</span>`);
   if (w.dynasty && w.dynasty.n > 1) lines.push(`<span class="rec">greatest dynasty — ${esc(w.dynasty.name)}, ${w.dynasty.n} emergences</span>`);
+  if (w.daily && (w.daily.ashore || w.daily.deaths)){
+    let today = `today — ${w.daily.ashore} emerged · ${w.daily.deaths} reabsorbed`;
+    if (w.daily.fastest) today += ` · fastest: ${esc(w.daily.fastest.name)} ${fmtTime(w.daily.fastest.s)}`;
+    lines.push(`<span class="today">${today}</span>`);
+  }
   ui.chronicle.innerHTML = lines.join('<br>');
   ui.chronicle.classList.remove('hidden');
 }
 
 /* ---- share cards ---- */
 async function shareText(text){
+  markShared();
   const payload = `${text}\n${location.origin}`;
   try {
     if (navigator.share){ await navigator.share({ text: payload }); return; }
@@ -265,7 +274,9 @@ function shareDeath(){
   const m = Net.lastDead;
   if (!m) return;
   const s = m.stats;
-  shareText(`My speck ${s.name} survived ${fmtTime(s.survived)} in SOUPLINGS before being undone by ${m.by || 'the soup'}. Avenge ${s.name}:`);
+  shareWithCard('death',
+    `survived ${fmtTime(s.survived)} · gen ${ROMAN[s.gen - 1]} · ${s.kills} kills`,
+    `My speck ${s.name} survived ${fmtTime(s.survived)} in SOUPLINGS before being undone by ${m.by || 'the soup'}. Avenge ${s.name}:`);
 }
 
 function shareWin(){
@@ -273,7 +284,9 @@ function shareWin(){
   if (!m) return;
   const s = m.stats;
   const stars = s.lineage > 1 ? ` My dynasty: ${'★'.repeat(Math.min(5, s.lineage))}.` : '';
-  shareText(`${s.name} crawled ashore after ${fmtTime(s.survived)} in the primordial soup${s.kills ? ` (${s.kills} kills)` : ''}.${stars} Evolve faster than me:`);
+  shareWithCard('win',
+    `${fmtTime(s.survived)} in the soup · ${s.dnaTotal} DNA · dynasty ${'★'.repeat(Math.min(5, s.lineage || 1))}`,
+    `${s.name} crawled ashore after ${fmtTime(s.survived)} in the primordial soup${s.kills ? ` (${s.kills} kills)` : ''}.${stars} Evolve faster than me:`);
 }
 
 /* ============================================================
@@ -430,7 +443,7 @@ function predictSelf(dt){
 
   const dx = tx - P.x, dy = ty - P.y;
   const d = Math.hypot(dx, dy);
-  const sp = st.speed * (P.dashT > 0 ? 2.8 : 1) * th;
+  const sp = st.speed * (P.dashT > 0 ? 2.8 : 1) * (Net.me.frenzy ? 1.15 : 1) * th;
   const k = st.steerK * (P.dashT > 0 ? 2.2 : 1);
   P.vx = damp(P.vx, d > 1 ? dx / d * sp : 0, k, dt);
   P.vy = damp(P.vy, d > 1 ? dy / d * sp : 0, k, dt);
@@ -562,6 +575,7 @@ function sample(){
     p.maxHp = e1[8];
     p.genome.hue = e1[9];
     p.isPlayer = !!(e1[11] & 4);
+    p.frenzied = !!(e1[11] & 8);
     if (e1[10] !== p.partsStr || Math.abs(p.r - p.statsR) > 0.5){
       for (let i = 0; i < PART_KEYS.length; i++) p.genome.parts[PART_KEYS[i]] = +e1[10][i] || 0;
       p.stats = deriveStats(p.genome, p.r, p.isPlayer);
@@ -627,8 +641,14 @@ function processEvents(){
       }
       case 'die': {
         world.burst(ev.x, ev.y, `hsla(${ev.hue},85%,70%,0.9)`, 16, 180, 0.9, 3);
-        if (ev.name && ev.who !== Net.myId) toast(`${ev.name} was reabsorbed`, false);
+        if (ev.name && ev.who !== Net.myId && !ev.byName) toast(`${ev.name} was reabsorbed`, false);
         if (ev.who === Net.myId) world.burst(ev.x, ev.y, 'rgba(125,255,212,0.9)', 40, 300, 1.4, 4);
+        if (ev.name && ev.byName) killFeedLine(`${ev.byName} devoured ${ev.name}`);
+        if (ev.by === Net.myId && ev.name){
+          showBanner('DEVOURED', ev.name);
+          AudioSys.devour();
+          Game.punch = 0.88;
+        }
         break;
       }
       case 'dash': {
@@ -669,6 +689,37 @@ function processEvents(){
       case 'zap': {
         world.burst(ev.x, ev.y, 'rgba(190,225,255,0.95)', 10, 170, 0.4, 2.5);
         if (ev.tgt === Net.myId) AudioSys.zap();
+        break;
+      }
+      case 'frenzy': {
+        const p = Game.puppets.get(ev.id);
+        if (p) world.burst(p.x, p.y, 'rgba(255,220,120,0.9)', 14, 160, 0.7, 3);
+        if (ev.id === Net.myId){
+          AudioSys.frenzy();
+          toast('feeding frenzy — DNA counts double while you burn', true);
+        }
+        break;
+      }
+      case 'goldSpawn':
+        toast('a golden mote glimmers somewhere in the soup', true);
+        if (AudioSys.ctx) AudioSys.gold();
+        break;
+      case 'goldgone':
+        if (ev.id === Net.myId){
+          showBanner('+60 DNA', 'the golden mote is yours');
+          AudioSys.gold();
+        } else if (ev.name){
+          toast(`${ev.name} devoured the golden mote`, true);
+        }
+        break;
+      case 'vengeance': {
+        killFeedLine(`⚔ ${ev.a} repaid ${ev.t}`, true);
+        toast(`⚔ ${ev.a} repaid ${ev.t}`, true);
+        if (ev.id === Net.myId){
+          showBanner('VENGEANCE', `${ev.t} has answered for it`);
+          AudioSys.devour();
+          Game.punch = 0.88;
+        }
         break;
       }
       case 'ashore':
@@ -772,6 +823,18 @@ function update(dt){
     Game.strandedT = 0;
   }
 
+  /* low-health heartbeat */
+  const meHp = Game.mePuppet && Game.mePuppet.maxHp ? Game.mePuppet.hp / Game.mePuppet.maxHp : 1;
+  if (Net.joined && meHp < 0.25){
+    Game.heartT = (Game.heartT || 0) - dt;
+    if (Game.heartT <= 0){
+      Game.heartT = 0.85;
+      if (AudioSys.ctx) AudioSys.heart();
+    }
+  } else {
+    Game.heartT = 0.2;
+  }
+
   updateCamera(dt);
   Game.shake *= Math.exp(-6 * dt);
   updateHUD();
@@ -781,6 +844,7 @@ function update(dt){
     Game.boardT = 0.5;
     updateBoard();
     updateEditorSafety();
+    cacheOwnGenome();
     if (Game.state === 'title'){ updateConnStatus(); updateChronicle(); }
   }
 }
@@ -792,10 +856,16 @@ function update(dt){
 function updateCamera(dt){
   const meP = Game.mePuppet;
   let tx, ty, tz;
+  const killer = Game.state === 'dead' && Game.spectateId ? Game.puppets.get(Game.spectateId) : null;
   if (meP && Net.joined){
     tx = meP.x + meP.vx * 0.22;
     ty = meP.y + meP.vy * 0.22;
     tz = H / (meP.r * 26 * (meP.stats ? meP.stats.zoomOut : 1));
+  } else if (killer && Game.world && Game.world.cells.includes(killer)){
+    /* watch your killer swim away, fat with your DNA */
+    tx = killer.x;
+    ty = killer.y;
+    tz = H / (killer.r * 30);
   } else if (Game.state === 'play' || Game.state === 'editor'){
     /* mid-run without a cell (reconnecting): hold still, don't fly away */
     tx = Game.cam.x;
@@ -806,9 +876,10 @@ function updateCamera(dt){
     ty = Math.sin(Game.time * 0.03) * 420;
     tz = H / 1500;
   }
+  Game.punch = damp(Game.punch || 1, 1, 5, dt);
   Game.cam.x = damp(Game.cam.x, tx, 3.5, dt);
   Game.cam.y = damp(Game.cam.y, ty, 3.5, dt);
-  Game.cam.zoom = damp(Game.cam.zoom, tz, 2.2, dt);
+  Game.cam.zoom = damp(Game.cam.zoom, tz * Game.punch, 2.2, dt);
 }
 
 const hudCache = { hp: -1, gr: -1, dna: -1, gen: -1, lin: -1 };
@@ -852,6 +923,69 @@ function esc(s){
   return String(s).replace(/[<>&]/g, ch => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;' }[ch]));
 }
 
+/* cache own genome for share cards (the puppet dies before the screen shows) */
+function cacheOwnGenome(){
+  const meP = Game.mePuppet;
+  if (meP) Game.lastOwnGenome = { hue: meP.genome.hue, parts: { ...meP.genome.parts } };
+}
+
+/* a proper share image: your creature, your legend, the url */
+function buildShareCard(kind, statsLine){
+  return new Promise(resolve => {
+    const c = document.createElement('canvas');
+    c.width = 1200; c.height = 630;
+    const g = c.getContext('2d');
+    Backdrop.draw(g, 1200, 630, { x: 0, y: 0 }, 2.3);
+    const genome = Game.lastOwnGenome || { hue: 158, parts: {} };
+    const mock = {
+      x: 300, y: 330, r: 150, dir: -0.4,
+      vx: 40, vy: 0, genome: { ...genome, carn: false, aggro: false },
+      stats: deriveStats(genome, 150, true),
+      wobbleSeed: 7, mouthT: 0, biteT: 0, hurtT: 0, iframes: 0, dashT: 0
+    };
+    drawCreature(g, mock, 2.3);
+    g.textAlign = 'left';
+    g.font = 'italic 900 84px Fraunces, Georgia, serif';
+    g.fillStyle = kind === 'win' ? '#ffd66b' : '#ff7a5c';
+    g.fillText(kind === 'win' ? 'EMERGENCE' : 'REABSORBED', 560, 260);
+    g.font = 'italic 600 34px Fraunces, Georgia, serif';
+    g.fillStyle = '#eafff5';
+    const lin = cachedLineage();
+    g.fillText(`${Game.myName || 'a speck'} ${lin ? '★'.repeat(Math.min(5, lin)) : ''}`, 562, 320);
+    g.font = '20px "Fragment Mono", monospace';
+    g.fillStyle = 'rgba(234,255,245,0.75)';
+    g.fillText(statsLine || '', 562, 368);
+    g.font = '16px "Fragment Mono", monospace';
+    g.fillStyle = 'rgba(125,255,212,0.6)';
+    g.fillText('SOUPLINGS.FUN — A MULTIPLAYER TIDE-POOL EVOLUTION', 562, 560);
+    Backdrop.vignette(g, 1200, 630);
+    c.toBlob(b => resolve(b), 'image/png');
+  });
+}
+
+function markShared(){
+  try {
+    if (!localStorage.getItem('soup_shared')){
+      localStorage.setItem('soup_shared', '1');
+      toast('a secret color surfaces in your palette', true);
+      buildHueRow();
+    }
+  } catch (e) {}
+}
+
+async function shareWithCard(kind, statsLine, text){
+  markShared();
+  try {
+    const blob = await buildShareCard(kind, statsLine);
+    const file = new File([blob], 'souplings.png', { type: 'image/png' });
+    if (blob && navigator.canShare && navigator.canShare({ files: [file] })){
+      await navigator.share({ files: [file], text: `${text}\n${location.origin}` });
+      return;
+    }
+  } catch (e) { /* fall through to text */ }
+  shareText(text);
+}
+
 function updateBoard(){
   if (!Game.world || !Net.joined){
     ui.board.classList.add('hidden');
@@ -892,14 +1026,29 @@ function drawCrown(g, x, y, s){
   g.restore();
 }
 
-/* full-screen level-up banner */
-function genSplash(gen){
+/* full-screen banner: level-ups, devourings, vengeance */
+function showBanner(main, sub){
   const el = $('genSplash');
-  el.querySelector('.gsRoman').textContent = `GEN ${ROMAN[gen - 1]}`;
-  el.querySelector('.gsTitle').textContent = GEN_TITLES[gen - 1];
+  el.querySelector('.gsRoman').textContent = main;
+  el.querySelector('.gsTitle').textContent = sub || '';
   el.classList.remove('play');
   void el.offsetWidth;   // restart the animation
   el.classList.add('play');
+}
+function genSplash(gen){
+  showBanner(`GEN ${ROMAN[gen - 1]}`, GEN_TITLES[gen - 1]);
+}
+
+function killFeedLine(text, gold){
+  const feed = $('killFeed');
+  if (!feed) return;
+  const el = document.createElement('div');
+  el.className = 'kf';
+  if (gold) el.innerHTML = `<span class="gold">${esc(text)}</span>`;
+  else el.textContent = text;
+  feed.appendChild(el);
+  while (feed.children.length > 4) feed.firstChild.remove();
+  setTimeout(() => el.remove(), 6200);
 }
 
 function toast(msg, gold){
@@ -1204,6 +1353,7 @@ function render(){
 
       if (sx2 > -60 && sx2 < W + 60 && sy2 > -60 && sy2 < H + 60){
         let ly = sy2 - c.r * z - 13;
+        const dt2 = c.lineage ? DYNASTY_TITLES.find(x => c.lineage >= x[0]) : null;
         if (c.lineage){
           /* the crown of an emerged line — visible to everyone */
           drawCrown(ctx, sx2, ly + 2, 9);
@@ -1214,6 +1364,11 @@ function render(){
         ctx.fillText(label, sx2 + 1, ly + 1);
         ctx.fillStyle = isMe ? 'rgba(125,255,212,0.9)' : 'rgba(234,255,245,0.85)';
         ctx.fillText(label, sx2, ly);
+        if (dt2){
+          ctx.font = 'italic 10px Fraunces, Georgia, serif';
+          ctx.fillStyle = 'rgba(255,214,107,0.85)';
+          ctx.fillText(dt2[1], sx2, ly - 13);
+        }
       } else if (!isMe){
         /* another human, somewhere out there — point the way */
         const m = 30;
@@ -1234,6 +1389,41 @@ function render(){
   ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
   Backdrop.vignette(ctx, W, H);
 
+  /* red pulse when close to reabsorption */
+  const hpFrac = Game.mePuppet && Game.mePuppet.maxHp ? Game.mePuppet.hp / Game.mePuppet.maxHp : 1;
+  if (Net.joined && hpFrac < 0.25){
+    const a = (0.25 - hpFrac) / 0.25 * (0.35 + 0.2 * Math.sin(t * 5.5));
+    const rg = ctx.createRadialGradient(W / 2, H / 2, Math.min(W, H) * 0.32, W / 2, H / 2, Math.max(W, H) * 0.72);
+    rg.addColorStop(0, 'rgba(255,60,40,0)');
+    rg.addColorStop(1, `rgba(255,50,35,${clamp(a, 0, 0.5)})`);
+    ctx.fillStyle = rg;
+    ctx.fillRect(0, 0, W, H);
+  }
+
+  /* the golden mote calls from beyond the screen edge */
+  if (Game.world){
+    const z2 = Game.cam.zoom;
+    for (const f of Game.world.food){
+      if (f.type !== 'gold') continue;
+      const sx2 = (f.x - Game.cam.x) * z2 + W / 2;
+      const sy2 = (f.y - Game.cam.y) * z2 + H / 2;
+      if (sx2 > -30 && sx2 < W + 30 && sy2 > -30 && sy2 < H + 30) continue;
+      const m = 34;
+      const cx2 = clamp(sx2, m, W - m), cy2 = clamp(sy2, m, H - m);
+      const pulse = 0.8 + 0.3 * Math.sin(t * 6);
+      ctx.save();
+      ctx.translate(cx2, cy2);
+      ctx.rotate(Math.PI / 4);
+      ctx.fillStyle = `rgba(255,214,107,${0.85 * pulse})`;
+      ctx.fillRect(-6, -6, 12, 12);
+      ctx.restore();
+      ctx.font = '10px "Fragment Mono", monospace';
+      ctx.textAlign = 'center';
+      ctx.fillStyle = 'rgba(255,214,107,0.8)';
+      ctx.fillText('golden mote', clamp(cx2, 80, W - 80), cy2 + (sy2 > cy2 ? -14 : 24));
+    }
+  }
+
   if (Game.state === 'editor') renderPreview();
 }
 
@@ -1244,7 +1434,8 @@ function render(){
 function beginFromTitle(){
   if (!Net.connected || ui.beginBtn.disabled) return;
   AudioSys.init();
-  Net.join(ui.nameInput.value.trim());
+  Net.join(ui.nameInput.value.trim(), Game.buddyCode);
+  Game.buddyCode = null;
 }
 
 function savedName(){
@@ -1294,6 +1485,19 @@ function buildHueRow(){
       });
       row.appendChild(dot);
     }
+    /* the share-surfaced color: one press of any share button reveals it */
+    let shared = false;
+    try { shared = !!localStorage.getItem('soup_shared'); } catch (e) {}
+    const sd = document.createElement('button');
+    sd.className = 'hueDot' + (shared ? '' : ' locked') + (sel === 335 ? ' sel' : '');
+    sd.style.background = 'hsl(335, 78%, 58%)';
+    sd.title = shared ? 'the shared color' : 'share the soup once to surface this color';
+    sd.addEventListener('click', () => {
+      if (!shared){ toast('share the soup once and this color surfaces', false); return; }
+      try { localStorage.setItem('soup_hue', '335'); } catch (e) {}
+      buildHueRow();
+    });
+    row.appendChild(sd);
   }
   buildTrailRow();
 }
@@ -1431,6 +1635,27 @@ const SAVE_V = 1;
     localStorage.setItem('soup_v', String(SAVE_V));
   } catch (e) {}
 })();
+
+/* arrived through a friend's invite link? */
+try {
+  const bp = new URLSearchParams(location.search).get('buddy');
+  if (bp){
+    Game.buddyCode = bp;
+    history.replaceState(null, '', location.pathname);
+    toast('a friend awaits — begin to surface beside them', true);
+  }
+} catch (e) {}
+
+$('inviteBtn').addEventListener('click', () => Net.invite());
+Net.onInvite = async m => {
+  const link = `${location.origin}/?buddy=${m.code}`;
+  try {
+    await navigator.clipboard.writeText(link);
+    toast('invite link copied — they will surface beside you', true);
+  } catch (e) {
+    toast(link, false);
+  }
+};
 
 ui.nameInput.value = savedName() || randomSpeciesName();
 try { if (!localStorage.getItem('soup_menu_seen')) $('menuBtn').classList.add('pulse'); } catch (e) {}

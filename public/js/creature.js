@@ -30,7 +30,7 @@ class Cell {
   steer(tx, ty, dt, throttle = 1){
     const dx = tx - this.x, dy = ty - this.y;
     const d = Math.hypot(dx, dy);
-    const sp = this.stats.speed * (this.dashT > 0 ? 2.8 : 1) * throttle;
+    const sp = this.stats.speed * (this.dashT > 0 ? 2.8 : 1) * (this.frenzy ? 1.15 : 1) * throttle;
     let dvx = 0, dvy = 0;
     if (d > 1){ dvx = dx / d * sp; dvy = dy / d * sp; }
     const k = this.stats.steerK * (this.dashT > 0 ? 2.2 : 1);
@@ -508,5 +508,8 @@ function drawCreature(ctx, c, t){
   }
   if (c.genome.parts.jelly){
     drawGlow(ctx, c.x, c.y, c.r * 3.6, 'hsla(45,100%,70%,0.8)', 0.12 + 0.06 * Math.sin(t * 1.7 + seed));
+  }
+  if (c.frenzied){
+    drawGlow(ctx, c.x, c.y, c.r * 3.3, 'hsla(48,100%,68%,0.85)', 0.28 + 0.14 * Math.sin(t * 9 + seed));
   }
 }

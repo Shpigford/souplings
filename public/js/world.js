@@ -6,7 +6,8 @@ const FOOD_DEF = {
   mote:  { dna: 1, mass: 2 },
   algae: { dna: 2, mass: 7 },
   meat:  { dna: 4, mass: 10 },
-  dna:   { dna: 8, mass: 0 }
+  dna:   { dna: 8, mass: 0 },
+  gold:  { dna: 60, mass: 30 }
 };
 
 /* screen-space depth layers, shared by every world */
@@ -127,7 +128,7 @@ class World {
     const def = FOOD_DEF[type];
     const f = {
       type, x, y,
-      r: type === 'mote' ? rand(2, 3) : type === 'algae' ? rand(5, 8) : type === 'meat' ? rand(6, 10) : 4,
+      r: type === 'mote' ? rand(2, 3) : type === 'algae' ? rand(5, 8) : type === 'meat' ? rand(6, 10) : type === 'gold' ? 9 : 4,
       vx: rand(-6, 6), vy: rand(-6, 6),
       seed: rand(0, 100),
       dna: def.dna, mass: def.mass,
@@ -309,6 +310,32 @@ class World {
             i ? ctx.lineTo(px, py) : ctx.moveTo(px, py);
           }
           ctx.closePath();
+          ctx.fill();
+          ctx.restore();
+          break;
+        }
+        case 'gold': {
+          const gp = 0.85 + 0.3 * Math.sin(t * 6 + f.seed);
+          drawGlow(ctx, f.x, f.y, f.r * 9 * gp, 'hsla(48,100%,62%,0.9)', 0.65);
+          ctx.save();
+          ctx.translate(f.x, f.y);
+          ctx.rotate(t * 2.2);
+          ctx.strokeStyle = 'rgba(255,232,150,0.95)';
+          ctx.lineWidth = 2.2;
+          ctx.beginPath();
+          for (let i = 0; i < 6; i++){
+            const a = i / 6 * TAU;
+            ctx.moveTo(Math.cos(a) * f.r * 0.7, Math.sin(a) * f.r * 0.7);
+            ctx.lineTo(Math.cos(a) * f.r * 1.9 * gp, Math.sin(a) * f.r * 1.9 * gp);
+          }
+          ctx.stroke();
+          ctx.fillStyle = '#fff3c8';
+          ctx.beginPath();
+          ctx.arc(0, 0, f.r * 0.75, 0, TAU);
+          ctx.fill();
+          ctx.fillStyle = 'rgba(255,214,107,0.9)';
+          ctx.beginPath();
+          ctx.arc(0, 0, f.r * 0.45, 0, TAU);
           ctx.fill();
           ctx.restore();
           break;
