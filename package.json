@@ -1,0 +1,15 @@
+{
+  "name": "primordia",
+  "version": "2.0.0",
+  "private": true,
+  "description": "A multiplayer tide-pool evolution game on Cloudflare Workers + Durable Objects",
+  "scripts": {
+    "start": "wrangler dev",
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "build:sim": "node scripts/build-sim.mjs"
+  },
+  "devDependencies": {
+    "wrangler": "^4"
+  }
+}

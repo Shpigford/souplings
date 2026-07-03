@@ -1,0 +1,25 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "primordia",
+  "main": "server/worker.js",
+  "compatibility_date": "2026-06-01",
+  "build": {
+    "command": "node scripts/build-sim.mjs"
+  },
+  "assets": {
+    "directory": "./public",
+    "binding": "ASSETS",
+    "run_worker_first": ["/", "/index.html"]
+  },
+  "durable_objects": {
+    "bindings": [
+      { "name": "SOUP", "class_name": "Soup" }
+    ]
+  },
+  "migrations": [
+    { "tag": "v1", "new_sqlite_classes": ["Soup"] }
+  ],
+  "observability": {
+    "enabled": true
+  }
+}
