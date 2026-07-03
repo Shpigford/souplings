@@ -351,7 +351,13 @@ function steerTarget(){
 function tryDash(){
   if (!Net.joined || !Game.mePuppet) return;
   const [tx, ty, th] = steerTarget();
-  if (Game.pred) Game.pred.dashT = 0.22;   // optimistic — the server echo confirms
+  /* only predict dashes the server will accept — an optimistic boost the
+     server rejects (cooldown) diverges the ghost and causes rubber-banding */
+  const P = Game.pred;
+  if (P && (P.dashCdT || 0) <= 0.05){
+    P.dashT = 0.22;
+    P.dashCdT = Game.mePuppet.stats ? Game.mePuppet.stats.dashCd : 2.6;
+  }
   Net.input(tx, ty, Math.max(th, 0.5), true);
 }
 
@@ -363,8 +369,9 @@ function predictSelf(dt){
   if (!meP || !Net.joined || !meP.stats){ Game.pred = null; return; }
   const st = meP.stats;
   let P = Game.pred;
-  if (!P) P = Game.pred = { x: meP.x, y: meP.y, vx: meP.vx, vy: meP.vy, dashT: 0 };
+  if (!P) P = Game.pred = { x: meP.x, y: meP.y, vx: meP.vx, vy: meP.vy, dashT: 0, dashCdT: 0 };
   P.dashT = Math.max(0, P.dashT - dt);
+  P.dashCdT = Math.max(0, (P.dashCdT || 0) - dt);
 
   let tx, ty, th;
   if (Game.state === 'editor'){ tx = P.x; ty = P.y; th = 0; }
@@ -388,12 +395,14 @@ function predictSelf(dt){
     P.vy -= P.y / dd * push;
   }
 
-  /* reconcile toward the server's truth */
+  /* reconcile toward the server's truth — gently during dash windows,
+     where honest divergence is largest and a hard snap reads as a glitch */
+  const dashing = P.dashT > 0 || (st.dashCd - P.dashCdT) < 0.7;
   const ex = meP.x - P.x, ey = meP.y - P.y;
   const err = Math.hypot(ex, ey);
-  if (err > 200){ P.x = meP.x; P.y = meP.y; P.vx = meP.vx; P.vy = meP.vy; }
+  if (err > (dashing ? 420 : 200)){ P.x = meP.x; P.y = meP.y; P.vx = meP.vx; P.vy = meP.vy; }
   else {
-    const g = 1 - Math.exp(-2.5 * dt);
+    const g = 1 - Math.exp(-(dashing ? 1.1 : 2.5) * dt);
     P.x += ex * g;
     P.y += ey * g;
   }
@@ -581,7 +590,13 @@ function processEvents(){
             'rgba(180,255,230,0.8)', 10, 150, 0.5, 2.5
           );
         }
-        if (ev.id === Net.myId) AudioSys.dash();
+        if (ev.id === Net.myId){
+          AudioSys.dash();
+          /* authoritative confirmation — keep the local cooldown mirror honest */
+          if (Game.pred && Game.mePuppet && Game.mePuppet.stats){
+            Game.pred.dashCdT = Math.max(Game.pred.dashCdT || 0, Game.mePuppet.stats.dashCd - 0.2);
+          }
+        }
         break;
       }
       case 'molt': {
