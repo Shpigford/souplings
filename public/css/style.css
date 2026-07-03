@@ -246,14 +246,19 @@ button kbd{ border-color:rgba(4,18,29,.4); color:inherit; }
   outline:none;
 }
 .identRow button{
-  padding:.3em .55em;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  width:2.45rem;
+  height:2.45rem;
+  flex:0 0 auto;
+  padding:0;
   background:transparent;
   color:var(--mint);
   border:1px solid var(--card-edge);
   border-radius:10px;
-  font-size:1.1rem;
-  line-height:1;
 }
+.identRow button svg{ display:block; }
 .menuHueRow{ display:flex; gap:.5rem; justify-content:center; margin-bottom:.7rem; }
 #identApply{ font-size:.68rem; }
 
