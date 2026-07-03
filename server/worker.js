@@ -11,7 +11,7 @@ import {
 } from './sim.gen.mjs';
 
 const WORLD_R = 2200;
-const FOOD_TARGET = 360;
+const FOOD_TARGET = 320;
 const PLAYER_HUES = [158, 205, 262, 95, 45, 305, 180, 335, 20, 120];
 
 export default {
@@ -183,8 +183,9 @@ export class Soup {
     if (cl){
       const run = cl.run, st = cell.stats;
       run.growth += f.mass * (herb ? st.algaeMul : st.meatMul) * (st.growthMul || 1);
-      run.dna += f.dna;
-      run.dnaTotal += f.dna;
+      const dnaGain = Math.round(f.dna * (st.dnaMul || 1));
+      run.dna += dnaGain;
+      run.dnaTotal += dnaGain;
       run.eaten++;
       cell.r = run.baseR * (1 + 0.16 * clamp(run.growth / run.need, 0, 1));
       cell.recalc();
@@ -370,7 +371,8 @@ export class Soup {
       }
       case 'buy': {
         if (!cl.alive || !cl.cell || !PARTS[m.key]) break;
-        if ((PARTS[m.key].gen || 1) > cl.run.gen) break;   // not yet unlocked
+        if ((PARTS[m.key].gen || 1) > cl.run.gen) break;      // not yet unlocked
+        if ((PARTS[m.key].dyn || 0) > cl.lineage) break;      // royal organs need an emerged dynasty
         const lvl = cl.genome.parts[m.key] || 0;
         const cost = partCost(m.key, lvl);
         if (cost === null || cost > cl.run.dna) break;
@@ -560,13 +562,20 @@ export class Soup {
     let fSpawns = 3;
     while (world.food.length < FOOD_TARGET && fSpawns-- > 0){
       let x, y;
-      const near = players.length && Math.random() < 0.55 ? pick(players) : null;
+      const near = players.length && Math.random() < 0.35 ? pick(players) : null;
       if (near){
-        const a = rand(0, TAU), d = rand(280, 1300);
+        const a = rand(0, TAU), d = rand(400, 1600);
         x = near.cell.x + Math.cos(a) * d;
         y = near.cell.y + Math.sin(a) * d;
         const wd = Math.hypot(x, y);
         if (wd > WORLD_R * 0.94){ x *= WORLD_R * 0.94 / wd; y *= WORLD_R * 0.94 / wd; }
+        /* the personal food stream never waters the nursery — no camping farms */
+        if (Math.hypot(x, y) < WORLD_R * 0.35){
+          const a2 = Math.atan2(y, x) || rand(0, TAU);
+          const d2 = WORLD_R * rand(0.37, 0.6);
+          x = Math.cos(a2) * d2;
+          y = Math.sin(a2) * d2;
+        }
       } else {
         [x, y] = world.randomFoodSpot(0, 0, 0);
       }

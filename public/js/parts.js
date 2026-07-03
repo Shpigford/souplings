@@ -4,49 +4,58 @@
 
 const PARTS = {
   flagellum: {
-    name: 'Flagellum', max: 3, cost: [15, 30, 55],
+    name: 'Flagellum', max: 3, cost: [20, 60, 130],
     desc: 'A whip of a tail. Each level adds raw speed.'
   },
   cilia: {
-    name: 'Cilia', max: 3, cost: [10, 25, 45],
+    name: 'Cilia', max: 3, cost: [15, 45, 100],
     desc: 'A fringe of beating hairs. Sharper turns, faster dash recovery.'
   },
   spike: {
-    name: 'Spines', max: 3, cost: [20, 35, 60],
+    name: 'Spines', max: 3, cost: [25, 70, 150],
     desc: 'Bristling defenses. Contact damage, and bites hurt you less.'
   },
   jaw: {
-    name: 'Proboscis Jaw', max: 3, cost: [20, 40, 65],
+    name: 'Proboscis Jaw', max: 3, cost: [30, 80, 170],
     desc: 'Snapping mandibles. Big bite damage; meat nourishes you more.'
   },
   filter: {
-    name: 'Filter Mouth', max: 3, cost: [15, 30, 50],
+    name: 'Filter Mouth', max: 3, cost: [20, 55, 120],
     desc: 'Baleen for the small stuff. Algae and motes are worth more.'
   },
   eye: {
-    name: 'Ocelli', max: 2, cost: [10, 35],
+    name: 'Ocelli', max: 2, cost: [15, 50],
     desc: 'Primitive eyes. See farther across the soup.'
   },
   membrane: {
-    name: 'Thick Membrane', max: 3, cost: [15, 35, 60],
+    name: 'Thick Membrane', max: 3, cost: [20, 60, 140],
     desc: 'A tougher hide. More health, shrug off a little damage.'
   },
   gland: {
-    name: 'Biolume Gland', max: 1, cost: [30],
+    name: 'Biolume Gland', max: 1, cost: [40],
     desc: 'A soft lantern. Nearby morsels drift toward your light.'
   },
   /* exotic organs — each generation opens a new shelf in the chamber */
   ink: {
-    name: 'Ink Sac', max: 1, cost: [40], gen: 2,
+    name: 'Ink Sac', max: 1, cost: [70], gen: 2,
     desc: 'A pocket of night. Dashing vents a blinding cloud — wild hunters lose the trail.'
   },
   volt: {
-    name: 'Volt Organ', max: 2, cost: [50, 85], gen: 3,
+    name: 'Volt Organ', max: 2, cost: [90, 160], gen: 3,
     desc: 'A rude surprise. Anything that bites you gets bitten back.'
   },
   osmo: {
-    name: 'Osmotic Core', max: 2, cost: [60, 95], gen: 4,
+    name: 'Osmotic Core', max: 2, cost: [110, 190], gen: 4,
     desc: 'Waste nothing. Every meal feeds your growth further.'
+  },
+  /* royal organs — only emerged dynasties may grow these */
+  helix: {
+    name: 'Ancestral Helix', max: 1, cost: [120], dyn: 1,
+    desc: 'An organ remembered from a life before. All DNA is worth a quarter more.'
+  },
+  jelly: {
+    name: 'Crown Jelly', max: 1, cost: [200], dyn: 3,
+    desc: 'Royalty of the soup. Small wild things dread your wake and flee.'
   }
 };
 
@@ -70,7 +79,7 @@ function deriveStats(genome, r, isPlayer){
     maxHp: (isPlayer ? 55 : 40) + 26 * g('membrane') + (isPlayer ? 0 : r * 0.45),
     dmg: 3 + 6 * g('spike') + 8 * g('jaw'),
     armor: clamp(0.12 * g('spike') + 0.10 * g('membrane'), 0, 0.5),
-    algaeMul: 1 + 0.5 * g('filter'),
+    algaeMul: 1 + 0.35 * g('filter'),
     meatMul: 1 + 0.5 * g('jaw'),
     sense: 340 * sizeF * (1 + 0.35 * g('eye')),
     zoomOut: 1 + 0.14 * g('eye'),
@@ -78,7 +87,8 @@ function deriveStats(genome, r, isPlayer){
     lure: g('gland') ? 150 * sizeF : 0,
     pickup: r + 26 + (g('gland') ? 60 * sizeF : 0),
     growthMul: 1 + 0.2 * g('osmo'),
-    volt: 8 * g('volt')
+    volt: 8 * g('volt'),
+    dnaMul: 1 + 0.25 * g('helix')
   };
 }
 
@@ -141,8 +151,9 @@ function isValidSpeciesName(name){
 const GEN_TITLES = ['Mote', 'Wriggler', 'Darter', 'Lurker', 'Sovereign of the Shallows'];
 const ROMAN = ['I', 'II', 'III', 'IV', 'V'];
 
-/* shared between client and server; tuned for the food-dense shared pool */
-const growthNeedFor = gen => 150 + (gen - 1) * 75;
+/* shared between client and server — an exponential ladder so late
+   generations are an expedition, not a snack break */
+const growthNeedFor = gen => Math.round(140 * Math.pow(1.75, gen - 1));
 const FOOD_TYPES = ['mote', 'algae', 'meat', 'dna'];
 
 /* players below this size are beneath the food chain's notice —

@@ -691,6 +691,8 @@ function updateHUD(){
   }
   const lin = meP ? (meP.lineage || 0) : 0;
   if (lin !== hudCache.lin){
+    if (hudCache.lin === 0 && lin === 1) toast('a royal organ awaits — Ancestral Helix unlocked', true);
+    if (hudCache.lin === 2 && lin === 3) toast('Crown Jelly unlocked — royalty of the soup', true);
     ui.specName.textContent = `${Game.myName || ''} ${'★'.repeat(Math.min(3, lin))}`.trim();
     hudCache.lin = lin;
   }
@@ -797,18 +799,26 @@ function buildEditor(){
 
 function refreshEditor(){
   const parts = myParts();
+  const lin = Game.mePuppet ? (Game.mePuppet.lineage || 0) : 0;
   for (const card of ui.partsGrid.children){
     const key = card.dataset.key;
     const def = PARTS[key];
     const lvl = parts[key] || 0;
     const cost = partCost(key, lvl);
-    const locked = (def.gen || 1) > Net.me.gen;
+    const genLocked = (def.gen || 1) > Net.me.gen;
+    const dynLocked = (def.dyn || 0) > lin;
+    const locked = genLocked || dynLocked;
     card.classList.toggle('locked', locked);
+    card.classList.toggle('royal', !!def.dyn);
     const pips = card.querySelector('.pips');
     pips.innerHTML = Array.from({ length: def.max }, (_, i) =>
       `<span class="${i < lvl ? '' : 'off'}">●</span>`).join('');
     const btn = card.querySelector('.buyBtn');
-    if (locked){
+    if (dynLocked){
+      btn.textContent = `dynasty ${'★'.repeat(def.dyn)}`;
+      btn.disabled = true;
+      btn.classList.remove('maxed');
+    } else if (genLocked){
       btn.textContent = `Gen ${ROMAN[(def.gen || 1) - 1]}`;
       btn.disabled = true;
       btn.classList.remove('maxed');
@@ -960,6 +970,26 @@ function drawPartIcon(g, key){
       g.beginPath(); g.arc(c, c, 9, 0, TAU); g.stroke();
       g.setLineDash([]);
       g.beginPath(); g.arc(c, c, 3, 0, TAU); g.fill();
+      break;
+    case 'helix':
+      g.strokeStyle = '#ffd66b';
+      for (const ph of [0, Math.PI]){
+        g.beginPath();
+        for (let i = 0; i <= 8; i++){
+          const y = 14 + i * 3;
+          const x = c + Math.sin(i / 8 * TAU + ph) * 7;
+          i ? g.lineTo(x, y) : g.moveTo(x, y);
+        }
+        g.stroke();
+      }
+      break;
+    case 'jelly':
+      g.fillStyle = '#ffd66b';
+      g.beginPath();
+      g.moveTo(14, 34); g.lineTo(14, 22); g.lineTo(20, 28); g.lineTo(26, 16);
+      g.lineTo(32, 28); g.lineTo(38, 22); g.lineTo(38, 34);
+      g.closePath();
+      g.fill();
       break;
   }
 }

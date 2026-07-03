@@ -4,9 +4,9 @@
 
 const FOOD_DEF = {
   mote:  { dna: 1, mass: 2 },
-  algae: { dna: 3, mass: 7 },
-  meat:  { dna: 5, mass: 10 },
-  dna:   { dna: 12, mass: 0 }
+  algae: { dna: 2, mass: 7 },
+  meat:  { dna: 4, mass: 10 },
+  dna:   { dna: 8, mass: 0 }
 };
 
 /* screen-space depth layers, shared by every world */

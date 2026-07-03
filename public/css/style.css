@@ -467,6 +467,9 @@ button:disabled:hover{ transform:none; box-shadow:none; }
 .partCard:hover{ border-color:rgba(125,255,212,.35); background:rgba(125,255,212,.08); }
 .partCard.locked{ opacity:.45; filter:saturate(.5); }
 .partCard.locked:hover{ border-color:rgba(125,255,212,.14); background:rgba(125,255,212,.045); }
+.partCard.royal{ border-color:rgba(255,214,107,.3); background:rgba(255,214,107,.05); }
+.partCard.royal:hover{ border-color:rgba(255,214,107,.5); }
+.partCard.royal .partName{ color:var(--gold); }
 .partCard canvas{ grid-row:1 / span 2; width:52px; height:52px; }
 
 .partName{ font-weight:600; font-size:1rem; }

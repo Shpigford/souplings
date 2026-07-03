@@ -155,7 +155,8 @@ class Cell {
     for (const c of world.cells){
       if (c === this || !c.alive) continue;
       if (c.r < this.r * 1.18) continue;
-      const scary = c.genome.aggro || (c.isPlayer && (c.genome.parts.jaw || c.genome.parts.spike));
+      const scary = c.genome.aggro ||
+        (c.isPlayer && (c.genome.parts.jaw || c.genome.parts.spike || c.genome.parts.jelly));
       if (!scary) continue;
       const d = dist(this.x, this.y, c.x, c.y);
       if (d < td){ td = d; threat = c; }
@@ -182,7 +183,7 @@ class Cell {
         if (c.iframes > 1) continue;                       // freshly spawned or encysted — not worth stalking
         if (th.blackT > 0 && c === th.black) continue;     // gave up on that one recently
         /* the nursery shelters only the small — grown campers are fair game */
-        if (nursery && c.r < 45 && Math.hypot(c.x, c.y) < nursery) continue;
+        if (nursery && c.r < NEWBIE_R && Math.hypot(c.x, c.y) < nursery) continue;
         const d = dist(this.x, this.y, c.x, c.y);
         if (d < pd){ pd = d; prey = c; }
       }
@@ -455,6 +456,31 @@ function drawCreature(ctx, c, t){
     }
   }
 
+  /* ---- ancestral helix: gold memory coiled beside the nucleus ---- */
+  if (lvl('helix') > 0){
+    ctx.strokeStyle = `rgba(255,214,107,${0.55 + 0.2 * Math.sin(t * 2.2 + seed)})`;
+    ctx.lineWidth = Math.max(1, r * 0.03);
+    ctx.lineCap = 'round';
+    const hx = r * 0.28, hy = r * 0.28, hl = r * 0.34;
+    for (const ph of [0, Math.PI]){
+      ctx.beginPath();
+      for (let i = 0; i <= 8; i++){
+        const yy = hy - hl / 2 + (i / 8) * hl;
+        const xx = hx + Math.sin(i / 8 * TAU + ph + t) * r * 0.09;
+        i ? ctx.lineTo(xx, yy) : ctx.moveTo(xx, yy);
+      }
+      ctx.stroke();
+    }
+  }
+
+  /* ---- crown jelly: a royal shimmer around the whole membrane ---- */
+  if (lvl('jelly') > 0){
+    blobPath(ctx, pts);
+    ctx.strokeStyle = `rgba(255,214,107,${0.3 + 0.15 * Math.sin(t * 1.7 + seed)})`;
+    ctx.lineWidth = r * 0.14;
+    ctx.stroke();
+  }
+
   /* ---- osmotic core: a hungry ring around the nucleus ---- */
   if (lvl('osmo') > 0){
     ctx.strokeStyle = `hsla(${h},85%,82%,${0.3 + 0.15 * Math.sin(t * 2 + seed)})`;
@@ -477,5 +503,8 @@ function drawCreature(ctx, c, t){
 
   if (c.genome.parts.gland){
     drawGlow(ctx, c.x, c.y, c.r * 3.4, `hsla(${h},100%,80%,0.8)`, 0.14 + 0.08 * Math.sin(t * 3 + seed));
+  }
+  if (c.genome.parts.jelly){
+    drawGlow(ctx, c.x, c.y, c.r * 3.6, 'hsla(45,100%,70%,0.8)', 0.12 + 0.06 * Math.sin(t * 1.7 + seed));
   }
 }
