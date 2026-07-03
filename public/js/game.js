@@ -121,7 +121,19 @@ Net.onStatus = state => {
   updateConnStatus();
 };
 
-Net.onHint = m => toast(m.msg, false);
+/* tutorial nudges: each hint key is shown once ever per device */
+const seenHints = new Set();   // fallback when localStorage is unavailable
+Net.onHint = m => {
+  const key = 'soup_hint_' + (m.key || m.msg);
+  try {
+    if (localStorage.getItem(key)) return;
+    localStorage.setItem(key, '1');
+  } catch (e) {
+    if (seenHints.has(key)) return;
+    seenHints.add(key);
+  }
+  toast(m.msg, false);
+};
 
 function updateConnStatus(){
   if (!ui.connStatus) return;

@@ -195,7 +195,7 @@ export class Soup {
       /* a player harmlessly bonking something deserves an explanation, once in a while */
       if (att.isPlayer && att.client && Date.now() - (att.client.lastBumpHint || 0) > 20000){
         att.client.lastBumpHint = Date.now();
-        this.send(att.client, { t: 'hint', msg: 'ramming does nothing without Spines or a Jaw — press E to evolve' });
+        this.send(att.client, { t: 'hint', key: 'bump', msg: 'ramming does nothing without Spines or a Jaw — press E to evolve' });
       }
       return;
     }
