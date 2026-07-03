@@ -10,8 +10,8 @@ import {
   rand, randInt, pick, clamp, dist, TAU
 } from './sim.gen.mjs';
 
-const WORLD_R = 2200;
-const FOOD_TARGET = 320;
+const WORLD_R = 3000;
+const FOOD_TARGET = 480;
 const PLAYER_HUES = [158, 205, 262, 95, 45, 305, 180, 335, 20, 120];
 
 export default {
@@ -129,8 +129,8 @@ export class Soup {
       const [x, y] = w.randomFoodSpot(0, 0, 0);
       w.spawnFood(this.foodTypeAt(x, y), x, y);
     }
-    for (let i = 0; i < 9; i++) w.spawnHazard(rand(28, 46));
-    for (let i = 0; i < 26; i++){
+    for (let i = 0; i < 12; i++) w.spawnHazard(rand(28, 46));
+    for (let i = 0; i < 20; i++){
       const a = rand(0, TAU), d = Math.sqrt(Math.random()) * WORLD_R * 0.9;
       this.spawnAICell(Math.cos(a) * d, Math.sin(a) * d);
     }
@@ -544,9 +544,10 @@ export class Soup {
       }
     }
 
-    /* keep the soup populated */
+    /* wildlife backfills the soup when humans are scarce; as real players
+       arrive, the wild thins out and the humans ARE the ecosystem */
     const players = this.alivePlayers();
-    const targetFauna = 26 + 8 * players.length;
+    const targetFauna = Math.max(10, 22 - 5 * Math.max(0, players.length - 1));
     if (world.cells.filter(c => !c.isPlayer).length < targetFauna){
       for (let tries = 0; tries < 6; tries++){
         const a = rand(0, TAU), d = Math.sqrt(Math.random()) * WORLD_R * 0.92;
