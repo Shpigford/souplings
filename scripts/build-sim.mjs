@@ -13,7 +13,7 @@ for (const f of FILES){
 }
 out += `
 export {
-  Cell, World, PARTS, PART_KEYS, GEN_TITLES, ROMAN, FOOD_TYPES, NEWBIE_R,
+  Cell, World, PARTS, PART_KEYS, GEN_TITLES, ROMAN, FOOD_TYPES, NEWBIE_R, HUE_UNLOCKS,
   deriveStats, randomGenome, partCost, randomSpeciesName, isValidSpeciesName, growthNeedFor,
   rand, randInt, pick, clamp, lerp, damp, angleLerp, dist, TAU
 };

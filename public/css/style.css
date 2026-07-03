@@ -188,6 +188,23 @@ button kbd{ border-color:rgba(4,18,29,.4); color:inherit; }
 }
 #rerollBtn svg{ display:block; }
 
+#hueRow{
+  display:flex; gap:.55rem; justify-content:center;
+  margin:0 0 1.3rem;
+  animation:riseIn .7s .52s ease both;
+}
+.hueDot{
+  width:20px; height:20px;
+  padding:0;
+  border-radius:50%;
+  border:1.5px solid rgba(234,255,245,.25);
+  cursor:pointer;
+  transition:transform .15s cubic-bezier(.3,1.6,.5,1), box-shadow .2s;
+}
+.hueDot.sel{ box-shadow:0 0 0 2.5px var(--abyss), 0 0 0 4.5px var(--mint); transform:scale(1.12); }
+.hueDot.locked{ opacity:.28; cursor:default; }
+.hueDot:hover:not(.locked){ transform:scale(1.2); }
+
 #beginBtn{
   font-size:1.25rem;
   padding:.85em 2.2em;
@@ -318,6 +335,14 @@ button:disabled:hover{ transform:none; box-shadow:none; }
   color:rgba(234,255,245,.75);
 }
 #boardList li.me{ color:var(--mint); }
+#boardMe{
+  margin-top:.5rem;
+  padding-top:.45rem;
+  border-top:1px solid rgba(125,255,212,.12);
+  font-size:.62rem;
+  color:var(--mint);
+  letter-spacing:.08em;
+}
 
 #evolveBtn{
   position:absolute;

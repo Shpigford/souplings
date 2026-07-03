@@ -160,3 +160,6 @@ const FOOD_TYPES = ['mote', 'algae', 'meat', 'dna'];
    gens 1–2 (r 26–39) are for learning and building; the wild only
    starts hunting you at gen 3, when you can hunt back */
 const NEWBIE_R = 40;
+
+/* dynasty hues: [hue, emergences required] — two free, the rest earned */
+const HUE_UNLOCKS = [[158, 0], [205, 0], [95, 1], [45, 2], [262, 3], [305, 4], [20, 5], [180, 6]];

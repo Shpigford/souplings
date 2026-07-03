@@ -5,7 +5,7 @@
    ============================================================ */
 
 import {
-  Cell, World, PARTS, PART_KEYS, FOOD_TYPES, NEWBIE_R,
+  Cell, World, PARTS, PART_KEYS, FOOD_TYPES, NEWBIE_R, HUE_UNLOCKS,
   randomGenome, partCost, randomSpeciesName, isValidSpeciesName, growthNeedFor,
   rand, randInt, pick, clamp, dist, TAU
 } from './sim.gen.mjs';
@@ -38,6 +38,7 @@ export default {
 export class Soup {
   constructor(state, env){
     this.state = state;
+    this.env = env;
     this.debug = env.SOUPLINGS_DEBUG === '1' || env.SOUPLINGS_DEBUG === 'true';
     this.world = new World(WORLD_R);
     this.clients = new Map();   // ws -> client
@@ -242,8 +243,13 @@ export class Soup {
       hue: Math.round(c.genome.hue), r: Math.round(c.r),
       who: c.client ? c.client.id : 0, name: c.client ? c.client.name : undefined
     });
-    this.world.scatterFood('meat', c.x, c.y, 2 + Math.floor(c.r / 22), c.r * 1.3);
-    const orbs = randInt(1, 2 + Math.floor(c.r / 30));
+    /* player deaths are gold rushes — the bigger the life, the bigger the feast */
+    const isPlayerDeath = !!c.client;
+    const meatN = isPlayerDeath ? 3 + c.client.run.gen * 2 : 2 + Math.floor(c.r / 22);
+    this.world.scatterFood('meat', c.x, c.y, meatN, c.r * (isPlayerDeath ? 1.6 : 1.3));
+    const orbs = isPlayerDeath
+      ? 2 + c.client.run.gen + Math.min(3, c.client.lineage)
+      : randInt(1, 2 + Math.floor(c.r / 30));
     for (let i = 0; i < orbs; i++){
       const f = this.world.spawnFood('dna', c.x + rand(-c.r, c.r), c.y + rand(-c.r, c.r));
       f.vx = rand(-60, 60); f.vy = rand(-60, 60);
@@ -311,14 +317,50 @@ export class Soup {
     };
     cl.ashore = false;
     this.spawnPlayerCell(cl);
-    this.send(cl, { t: 'joined', name: cl.name });
+    this.send(cl, { t: 'joined', name: cl.name, lineage: cl.lineage });
   }
 
   /* -------------------- messages -------------------- */
 
+  /* custom names pass through Claude Haiku; verdicts are cached forever.
+     No API key or any failure = fail closed = a generated name. */
+  async moderateName(name){
+    const key = 'mod:' + name.toLowerCase();
+    const cached = await this.state.storage.get(key);
+    if (cached !== undefined) return cached;
+    if (!this.env.ANTHROPIC_API_KEY) return false;
+    try {
+      const res = await Promise.race([
+        fetch('https://api.anthropic.com/v1/messages', {
+          method: 'POST',
+          headers: {
+            'content-type': 'application/json',
+            'x-api-key': this.env.ANTHROPIC_API_KEY,
+            'anthropic-version': '2023-06-01'
+          },
+          body: JSON.stringify({
+            model: 'claude-haiku-4-5-20251001',
+            max_tokens: 5,
+            system: 'You moderate display names for a family-friendly multiplayer game. Reply with exactly ALLOW or DENY. DENY names containing profanity, slurs, sexual content, harassment, hate speech or symbols, drug references, or filter evasion via creative spelling or symbols. When unsure, DENY.',
+            messages: [{ role: 'user', content: 'Name: "' + name + '"' }]
+          })
+        }),
+        new Promise((resolve, reject) => setTimeout(() => reject(new Error('timeout')), 3000))
+      ]);
+      const data = await res.json();
+      const ok = ((data.content && data.content[0] && data.content[0].text) || '').trim().toUpperCase().startsWith('ALLOW');
+      this.state.storage.put(key, ok);
+      return ok;
+    } catch (e) {
+      return false;
+    }
+  }
+
   saveProfile(cl){
     if (!cl.token) return;
-    this.state.storage.put('prof:' + cl.token, { lineage: cl.lineage, name: cl.name, t: Date.now() });
+    /* v stamps the schema; reads stay field-by-field defensive so old
+       profiles never break new code */
+    this.state.storage.put('prof:' + cl.token, { v: 1, lineage: cl.lineage, name: cl.name, t: Date.now() });
   }
 
   async handleMessage(cl, m){
@@ -330,14 +372,27 @@ export class Soup {
         cl.editorOpen = !!m.open;
         break;
       case 'join': {
-        /* only generator-grammar names are accepted — no typed names, no moderation problem */
-        const name = isValidSpeciesName(m.name) ? m.name : randomSpeciesName();
-        /* restore the dynasty: lineage persists per anonymous device token */
+        /* restore the dynasty first: lineage persists per anonymous device token */
         if (typeof m.token === 'string' && /^[0-9a-f]{16,64}$/.test(m.token)){
           cl.token = m.token;
           const prof = await this.state.storage.get('prof:' + m.token);
           if (prof && prof.lineage) cl.lineage = prof.lineage;
         }
+        /* names: generator grammar passes free; custom names face the taxonomists (Haiku) */
+        const raw = String(m.name || '').trim();
+        let name;
+        if (isValidSpeciesName(raw)){
+          name = raw;
+        } else if (/^[A-Za-z0-9 '\-\.]{2,24}$/.test(raw) && await this.moderateName(raw)){
+          name = raw;
+        } else {
+          name = randomSpeciesName();
+          if (raw) this.send(cl, { t: 'toast', msg: 'the taxonomists rejected that name — you are ' + name });
+        }
+        /* dynasty hues: only what the lineage has earned */
+        const wantHue = +m.hue;
+        const hueOpt = HUE_UNLOCKS.find(u => u[0] === wantHue);
+        if (hueOpt && cl.lineage >= hueOpt[1]) cl.hue = wantHue;
         this.freshRun(cl, name);
         this.saveProfile(cl);
         this.events.push({ e: 'join', name });
@@ -388,7 +443,7 @@ export class Soup {
       case 'respawn': {
         if (cl.alive) break;
         if (cl.ashore || !cl.run) this.freshRun(cl);
-        else { this.spawnPlayerCell(cl); this.send(cl, { t: 'joined', name: cl.name }); }
+        else { this.spawnPlayerCell(cl); this.send(cl, { t: 'joined', name: cl.name, lineage: cl.lineage }); }
         break;
       }
       case 'debug': {
@@ -493,7 +548,17 @@ export class Soup {
             e: 'hit', x: Math.round(c.x), y: Math.round(c.y),
             hue: Math.round(c.genome.hue), att: 0, tgt: c.id
           });
-          if (!c.alive) this.killCell(c, null);
+          if (!c.alive){
+            const wasHunting = !c.isPlayer && c.think && c.think.mode === 'hunt';
+            this.killCell(c, null);
+            if (wasHunting){
+              /* lured to its death — kiting pays */
+              for (let i = 0; i < 3; i++){
+                const f = this.world.spawnFood('dna', c.x + rand(-c.r, c.r), c.y + rand(-c.r, c.r));
+                f.vx = rand(-60, 60); f.vy = rand(-60, 60);
+              }
+            }
+          }
           break;
         }
       }

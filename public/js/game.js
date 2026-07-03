@@ -70,7 +70,11 @@ Net.onWelcome = () => {
 
 Net.onJoined = m => {
   Game.myName = m.name;
-  try { localStorage.setItem('soup_name', m.name); } catch (e) {}
+  try {
+    localStorage.setItem('soup_name', m.name);
+    localStorage.setItem('soup_lineage', String(m.lineage || 0));
+  } catch (e) {}
+  buildHueRow();
   ui.specName.textContent = m.name;
   ui.previewCaption.textContent = m.name;
   ui.title.classList.add('hidden');
@@ -97,10 +101,19 @@ Net.onDead = m => {
     } catch (e) {}
   }
   ui.deathBy.textContent = by ? `undone by ${by}` : '';
-  ui.deathStats.textContent =
+  const b = loadBests();
+  let newBest = false;
+  if (s.survived > (b.survived || 0)){ b.survived = s.survived; newBest = true; }
+  if (s.gen > (b.gen || 0)){ b.gen = s.gen; newBest = true; }
+  if (s.kills > (b.kills || 0)){ b.kills = s.kills; newBest = true; }
+  saveBests(b);
+  ui.deathStats.innerHTML =
     `survived ${fmtTime(s.survived)} · generation ${ROMAN[s.gen - 1]} · ` +
-    `${s.dnaTotal} DNA gathered · ${s.kills} kills`;
+    `${s.dnaTotal} DNA gathered · ${s.kills} kills<br>` +
+    `<span class="dim">your bests — ${fmtTime(b.survived || 0)} · gen ${ROMAN[(b.gen || 1) - 1]} · ${b.kills || 0} kills</span>` +
+    (newBest ? ' <span class="gold">new best</span>' : '');
   ui.death.classList.remove('hidden');
+  ui.continueBtn.focus();
 };
 
 Net.onAshore = m => {
@@ -109,9 +122,19 @@ Net.onAshore = m => {
   AudioSys.win();
   const s = m.stats;
   const stars = '★'.repeat(Math.min(5, s.lineage || 1));
+  try { localStorage.setItem('soup_lineage', String(s.lineage || 1)); } catch (e) {}
+  buildHueRow();
+  const b = loadBests();
+  const fastest = !b.fastest || s.survived < b.fastest;
+  if (fastest) b.fastest = s.survived;
+  if (5 > (b.gen || 0)) b.gen = 5;
+  if (s.kills > (b.kills || 0)) b.kills = s.kills;
+  saveBests(b);
   ui.winStats.innerHTML =
     `${esc(s.name)} · dynasty <span class="gold">${stars}${(s.lineage || 1) > 5 ? '×' + s.lineage : ''}</span><br>` +
-    `${fmtTime(s.survived)} in the soup · ${s.dnaTotal} DNA · ${s.kills} kills · ${s.deaths} setbacks`;
+    `${fmtTime(s.survived)} in the soup · ${s.dnaTotal} DNA · ${s.kills} kills · ${s.deaths} setbacks<br>` +
+    `<span class="dim">personal fastest — ${fmtTime(b.fastest)}</span>` +
+    (fastest ? ' <span class="gold">new best</span>' : '');
   ui.winRestartBtn.innerHTML = `Continue the dynasty <span>${stars}</span>`;
   ui.win.classList.remove('hidden');
   ui.hud.classList.add('hidden');
@@ -135,6 +158,8 @@ Net.onStatus = state => {
 
 /* tutorial nudges: each hint key is shown once ever per device */
 const seenHints = new Set();   // fallback when localStorage is unavailable
+Net.onToast = m => toast(m.msg, false);
+
 Net.onHint = m => {
   const key = 'soup_hint_' + (m.key || m.msg);
   try {
@@ -323,8 +348,9 @@ window.addEventListener('keydown', e => {
     else if (Game.state === 'play') openMenu();
   } else if (e.key === 'm' || e.key === 'M'){
     if (AudioSys.ctx) toast(AudioSys.toggleMute() ? 'the soup falls silent' : 'the soup burbles again', false);
-  } else if (e.key === 'Enter' && Game.state === 'title'){
-    beginFromTitle();
+  } else if (e.key === 'Enter'){
+    if (Game.state === 'title') beginFromTitle();
+    else if (Game.state === 'dead' || Game.state === 'win') Net.respawn();
   }
 });
 window.addEventListener('keyup', e => {
@@ -769,12 +795,16 @@ function updateBoard(){
   const players = Game.world.cells.filter(c => c.name);
   if (!players.length){ ui.board.classList.add('hidden'); return; }
   players.sort((a, b) => (b.lineage - a.lineage) || (b.gen - a.gen) || (b.dnaTotal - a.dnaTotal));
+  document.querySelector('.boardTitle').textContent =
+    players.length > 1 ? `drifters · ${players.length} adrift` : 'drifters';
   const starsFor = n => !n ? '' : (n > 3 ? ` ★×${n}` : ' ' + '★'.repeat(n));
-  ui.boardList.innerHTML = players.slice(0, 8).map(p =>
+  ui.boardList.innerHTML = players.slice(0, 10).map(p =>
     `<li class="${p.id === Net.myId ? 'me' : ''}">` +
     `<span class="bn">${esc(p.name)}<span class="bstar">${starsFor(p.lineage)}</span></span>` +
     `<span class="bg">Gen ${ROMAN[p.gen - 1] || 'I'} · <span class="bdna">${p.dnaTotal || 0}</span></span></li>`
   ).join('');
+  const myIdx = players.findIndex(p => p.id === Net.myId);
+  $('boardMe').textContent = myIdx >= 0 ? `you — #${myIdx + 1} of ${players.length} adrift` : '';
   ui.board.classList.remove('hidden');
 }
 
@@ -1173,7 +1203,40 @@ function rollName(){
   ui.rerollBtn.style.transform = `rotate(${diceSpin}deg)`;
 }
 ui.rerollBtn.addEventListener('click', rollName);
-ui.nameInput.addEventListener('click', rollName);
+
+/* dynasty hue swatches: two free, the rest earned by emergences.
+   Server enforces; the cached lineage only drives the UI. */
+function cachedLineage(){
+  try { return +localStorage.getItem('soup_lineage') || 0; } catch (e) { return 0; }
+}
+function buildHueRow(){
+  const row = $('hueRow');
+  if (!row) return;
+  const lin = cachedLineage();
+  let sel = 158;
+  try { sel = +localStorage.getItem('soup_hue') || 158; } catch (e) {}
+  row.innerHTML = '';
+  for (const [h, req] of HUE_UNLOCKS){
+    const dot = document.createElement('button');
+    dot.className = 'hueDot' + (lin < req ? ' locked' : '') + (h === sel ? ' sel' : '');
+    dot.style.background = `hsl(${h}, 78%, 58%)`;
+    dot.title = lin < req ? `unlocks at dynasty ${'★'.repeat(req)}` : 'dynasty color';
+    dot.addEventListener('click', () => {
+      if (lin < req){ toast(`that color unlocks at dynasty ${'★'.repeat(req)}`, false); return; }
+      try { localStorage.setItem('soup_hue', String(h)); } catch (e) {}
+      buildHueRow();
+    });
+    row.appendChild(dot);
+  }
+}
+
+/* personal bests, kept on this device */
+function loadBests(){
+  try { return JSON.parse(localStorage.getItem('soup_bests') || '{}'); } catch (e) { return {}; }
+}
+function saveBests(b){
+  try { localStorage.setItem('soup_bests', JSON.stringify(b)); } catch (e) {}
+}
 
 /* the about card doubles as the pause menu: while open in-game, you encyst */
 function menuSafetyFlag(){
@@ -1247,7 +1310,23 @@ if (window.matchMedia && matchMedia('(pointer: coarse)').matches){
   ui.controlsNote.textContent = 'touch to swim · double-tap to dash';
 }
 
+/* saved-state versioning: every localStorage read in this file is already
+   defensive (try/catch + defaults), so old saves can never crash new code —
+   they just lack fields that default sensibly. This stamp exists so any
+   FUTURE breaking change has a hook to migrate or selectively clear. */
+const SAVE_V = 1;
+(function migrateLocalSave(){
+  try {
+    const v = +localStorage.getItem('soup_v') || 0;
+    if (v < 1){
+      /* v0 -> v1: no changes needed; all v0 keys remain valid */
+    }
+    localStorage.setItem('soup_v', String(SAVE_V));
+  } catch (e) {}
+})();
+
 ui.nameInput.value = savedName() || randomSpeciesName();
+buildHueRow();
 buildEditor();
 updateConnStatus();
 Net.connect();

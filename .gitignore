@@ -2,3 +2,4 @@ node_modules/
 .wrangler/
 .DS_Store
 server/sim.gen.mjs
+.dev.vars

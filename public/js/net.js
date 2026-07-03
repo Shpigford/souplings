@@ -20,7 +20,7 @@ const Net = {
 
   /* handlers assigned by game.js */
   onWelcome: null, onJoined: null, onDead: null,
-  onAshore: null, onBuyok: null, onStatus: null, onHint: null,
+  onAshore: null, onBuyok: null, onStatus: null, onHint: null, onToast: null,
 
   url(){
     return (location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host + '/ws';
@@ -103,6 +103,9 @@ const Net = {
       case 'hint':
         this.onHint && this.onHint(m);
         break;
+      case 'toast':
+        this.onToast && this.onToast(m);
+        break;
     }
   },
 
@@ -122,7 +125,11 @@ const Net = {
   send(o){
     if (this.ws && this.ws.readyState === 1) this.ws.send(JSON.stringify(o));
   },
-  join(name){ this.send({ t: 'join', name, token: this.token() }); },
+  join(name){
+    let hue = 0;
+    try { hue = +localStorage.getItem('soup_hue') || 0; } catch (e) {}
+    this.send({ t: 'join', name, token: this.token(), hue });
+  },
   input(tx, ty, th, dash){
     this.send({ t: 'input', tx: Math.round(tx), ty: Math.round(ty), th: +th.toFixed(2), dash: !!dash });
   },
