@@ -287,6 +287,9 @@ export class Soup {
 
   handleMessage(cl, m){
     switch (m.t){
+      case 'ping':
+        /* no-op — the incoming message itself resets the DO's CPU allowance */
+        break;
       case 'join': {
         const name = sanitizeName(m.name);
         this.freshRun(cl, name);
@@ -340,6 +343,12 @@ export class Soup {
   /* -------------------- the tick -------------------- */
 
   tick(){
+    /* a sim bug must never crash-loop the Durable Object */
+    try { this.simulate(); }
+    catch (e) { console.error('tick error', e); }
+  }
+
+  simulate(){
     const dt = 1 / 30;
     const world = this.world;
 

@@ -20,6 +20,12 @@
     { "tag": "v1", "new_sqlite_classes": ["Soup"] }
   ],
   "observability": {
-    "enabled": true
+    "logs": {
+      "enabled": true,
+      "invocation_logs": true
+    },
+    "traces": {
+      "enabled": false
+    }
   }
 }

@@ -16,6 +16,7 @@ const Net = {
   lastDead: null,   // last death report, kept for share cards
   lastAshore: null,
   retryT: null,
+  pingT: null,
 
   /* handlers assigned by game.js */
   onWelcome: null, onJoined: null, onDead: null,
@@ -36,11 +37,16 @@ const Net = {
     this.ws.onopen = () => {
       this.connected = true;
       this.onStatus && this.onStatus('connected');
+      /* heartbeat: incoming messages reset the Durable Object's CPU clock;
+         without one, an idle spectator lets the server tick itself to eviction */
+      clearInterval(this.pingT);
+      this.pingT = setInterval(() => this.send({ t: 'ping' }), 10000);
     };
     this.ws.onclose = () => {
       this.connected = false;
       this.joined = false;
       this.snaps.length = 0;
+      clearInterval(this.pingT);
       this.onStatus && this.onStatus('lost');
       this.scheduleRetry();
     };
