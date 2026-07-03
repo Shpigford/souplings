@@ -374,7 +374,7 @@ function predictSelf(dt){
   P.dashCdT = Math.max(0, (P.dashCdT || 0) - dt);
 
   let tx, ty, th;
-  if (Game.state === 'editor'){ tx = P.x; ty = P.y; th = 0; }
+  if (Game.state === 'editor' || Game.menuOpen){ tx = P.x; ty = P.y; th = 0; }
   else [tx, ty, th] = steerTargetFrom(P.x, P.y, meP.r);
 
   const dx = tx - P.x, dy = ty - P.y;
@@ -769,8 +769,11 @@ function updateBoard(){
   const players = Game.world.cells.filter(c => c.name);
   if (!players.length){ ui.board.classList.add('hidden'); return; }
   players.sort((a, b) => (b.lineage - a.lineage) || (b.gen - a.gen) || (b.dnaTotal - a.dnaTotal));
+  const starsFor = n => !n ? '' : (n > 3 ? ` ★×${n}` : ' ' + '★'.repeat(n));
   ui.boardList.innerHTML = players.slice(0, 8).map(p =>
-    `<li class="${p.id === Net.myId ? 'me' : ''}"><span>${esc(p.name)}${p.lineage ? ' ' + '★'.repeat(Math.min(3, p.lineage)) : ''}</span><span>Gen ${ROMAN[p.gen - 1] || 'I'}</span></li>`
+    `<li class="${p.id === Net.myId ? 'me' : ''}">` +
+    `<span class="bn">${esc(p.name)}<span class="bstar">${starsFor(p.lineage)}</span></span>` +
+    `<span class="bg">Gen ${ROMAN[p.gen - 1] || 'I'} · <span class="bdna">${p.dnaTotal || 0}</span></span></li>`
   ).join('');
   ui.board.classList.remove('hidden');
 }

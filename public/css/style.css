@@ -293,8 +293,14 @@ button:disabled:hover{ transform:none; box-shadow:none; }
 #board{
   position:absolute; top:5.6rem; right:1.2rem;
   padding:.7rem 1rem .8rem;
-  min-width:190px;
+  min-width:230px;
 }
+#boardList .bn{
+  overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+  max-width:10.5rem;
+}
+#boardList .bstar, #boardList .bdna{ color:var(--gold); }
+#boardList .bg{ white-space:nowrap; }
 .boardTitle{
   font-family:var(--font-mono);
   font-size:.58rem;
