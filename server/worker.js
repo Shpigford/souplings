@@ -149,6 +149,7 @@ export class Soup {
   dropClient(ws){
     const cl = this.clients.get(ws);
     if (!cl) return;
+    this.bankRun(cl);
     this.clients.delete(ws);
     if (cl.cell){ cl.cell.alive = false; cl.cell.processed = true; cl.cell = null; }
     if (cl.name){
@@ -399,7 +400,8 @@ export class Soup {
     this.send(cl, {
       t: 'dead', stats: this.runStats(cl), by,
       killerId: killerId || 0,
-      nemesis: cl.nemesisName || undefined
+      nemesis: cl.nemesisName || undefined,
+      life: this.lifeView(cl)
     });
   }
 
@@ -425,6 +427,7 @@ export class Soup {
   }
 
   freshRun(cl, name, near){
+    this.bankRun(cl);
     if (cl.cell){ cl.cell.alive = false; cl.cell.processed = true; cl.cell = null; }
     if (name) cl.name = name;
     if (!cl.name) cl.name = randomSpeciesName();   // respawn on a fresh socket, no join first
@@ -436,6 +439,7 @@ export class Soup {
       joinT: Date.now(), eaten: 0, kills: 0, deaths: 0, dnaTotal: heirloom
     };
     cl.ashore = false;
+    cl.runBanked = false;
     this.spawnPlayerCell(cl, near);
     this.send(cl, { t: 'joined', name: cl.name, lineage: cl.lineage });
   }
@@ -480,7 +484,36 @@ export class Soup {
     if (!cl.token) return;
     /* v stamps the schema; reads stay field-by-field defensive so old
        profiles never break new code */
-    this.state.storage.put('prof:' + cl.token, { v: 1, lineage: cl.lineage, name: cl.name, t: Date.now() });
+    const life = cl.life || { time: 0, dna: 0, kills: 0, runs: 0 };
+    this.state.storage.put('prof:' + cl.token, {
+      v: 1, lineage: cl.lineage, name: cl.name, t: Date.now(),
+      lifeTime: life.time, lifeDna: life.dna, lifeKills: life.kills, lifeRuns: life.runs
+    });
+  }
+
+  /* bank a finished run into the dynasty's lifetime ledger — once */
+  bankRun(cl){
+    if (!cl.run || cl.runBanked) return;
+    cl.runBanked = true;
+    const life = cl.life = cl.life || { time: 0, dna: 0, kills: 0, runs: 0 };
+    life.time += Math.round((Date.now() - cl.run.joinT) / 1000);
+    life.dna += cl.run.dnaTotal;
+    life.kills += cl.run.kills;
+    life.runs += 1;
+    this.saveProfile(cl);
+  }
+
+  /* the ledger as of right now, current run included */
+  lifeView(cl){
+    const life = cl.life || { time: 0, dna: 0, kills: 0, runs: 0 };
+    if (cl.runBanked || !cl.run) return { ...life, emergences: cl.lineage };
+    return {
+      time: life.time + Math.round((Date.now() - cl.run.joinT) / 1000),
+      dna: life.dna + cl.run.dnaTotal,
+      kills: life.kills + cl.run.kills,
+      runs: life.runs + 1,
+      emergences: cl.lineage
+    };
   }
 
   async handleMessage(cl, m){
@@ -533,7 +566,13 @@ export class Soup {
         if (typeof m.token === 'string' && /^[0-9a-f]{16,64}$/.test(m.token)){
           cl.token = m.token;
           const prof = await this.state.storage.get('prof:' + m.token);
-          if (prof && prof.lineage) cl.lineage = prof.lineage;
+          if (prof){
+            if (prof.lineage) cl.lineage = prof.lineage;
+            cl.life = {
+              time: prof.lifeTime || 0, dna: prof.lifeDna || 0,
+              kills: prof.lifeKills || 0, runs: prof.lifeRuns || 0
+            };
+          }
         }
         /* names: generator grammar passes free; custom names face the taxonomists (Haiku) */
         const raw = String(m.name || '').trim();
@@ -831,9 +870,10 @@ export class Soup {
           this.stats.dynasty = { name: cl.name, n: cl.lineage };
         }
         this.saveStats();
+        this.bankRun(cl);
         this.saveProfile(cl);
         rs.lineage = cl.lineage;
-        this.send(cl, { t: 'ashore', stats: rs });
+        this.send(cl, { t: 'ashore', stats: rs, life: this.lifeView(cl) });
       } else {
         run.gen++;
         run.baseR *= 1.30;

@@ -120,9 +120,17 @@ Net.onDead = m => {
   if (s.gen > (b.gen || 0)){ b.gen = s.gen; newBest = true; }
   if (s.kills > (b.kills || 0)){ b.kills = s.kills; newBest = true; }
   saveBests(b);
+  const L = m.life;
+  const lin = cachedLineage();
+  const dynastyLine = L
+    ? `<span class="gold">your dynasty — ${lin ? '★'.repeat(Math.min(5, lin)) + (lin > 5 ? '×' + lin : '') + ' · ' : ''}` +
+      `${L.runs} speck${L.runs === 1 ? '' : 's'} lived · ${fmtTime(L.time)} in the soup · ` +
+      `${L.dna} DNA · ${L.kills} kills all-time</span><br>`
+    : '';
   ui.deathStats.innerHTML =
-    `survived ${fmtTime(s.survived)} · generation ${ROMAN[s.gen - 1]} · ` +
-    `${s.dnaTotal} DNA gathered · ${s.kills} kills<br>` +
+    `this speck — ${fmtTime(s.survived)} · generation ${ROMAN[s.gen - 1]} · ` +
+    `${s.dnaTotal} DNA · ${s.kills} kills<br>` +
+    dynastyLine +
     `<span class="dim">your bests — ${fmtTime(b.survived || 0)} · gen ${ROMAN[(b.gen || 1) - 1]} · ${b.kills || 0} kills</span>` +
     (newBest ? ' <span class="gold">new best</span>' : '');
   ui.death.classList.remove('hidden');
@@ -147,9 +155,11 @@ Net.onAshore = m => {
   if (5 > (b.gen || 0)) b.gen = 5;
   if (s.kills > (b.kills || 0)) b.kills = s.kills;
   saveBests(b);
+  const L2 = m.life;
   ui.winStats.innerHTML =
     `${esc(s.name)} · dynasty <span class="gold">${stars}${(s.lineage || 1) > 5 ? '×' + s.lineage : ''}</span><br>` +
-    `${fmtTime(s.survived)} in the soup · ${s.dnaTotal} DNA · ${s.kills} kills · ${s.deaths} setbacks<br>` +
+    `this run — ${fmtTime(s.survived)} · ${s.dnaTotal} DNA · ${s.kills} kills · ${s.deaths} setbacks<br>` +
+    (L2 ? `<span class="gold">all-time — ${L2.runs} specks · ${fmtTime(L2.time)} in the soup · ${L2.kills} kills</span><br>` : '') +
     `<span class="dim">personal fastest — ${fmtTime(b.fastest)}</span>` +
     (fastest ? ' <span class="gold">new best</span>' : '');
   ui.winRestartBtn.innerHTML = `Continue the dynasty <span>${stars}</span>`;
