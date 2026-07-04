@@ -126,6 +126,7 @@ function dynStrip(stars, facts){
 }
 
 Net.onDead = m => {
+  Clips.capture('demise');
   if (Game.state === 'editor') closeEditor();
   if (Game.menuOpen) closeMenu();
   Game.state = 'dead';
@@ -172,6 +173,7 @@ Net.onDead = m => {
 };
 
 Net.onAshore = m => {
+  Clips.capture('emergence');
   if (Game.state === 'editor') closeEditor();
   if (Game.menuOpen) closeMenu();
   Game.state = 'win';
@@ -771,6 +773,7 @@ function processEvents(){
         if (ev.name && ev.byName) killFeedLine(`${ev.byName} devoured ${ev.name}`);
         if (ev.by === Net.myId && ev.name){
           showBanner('DEVOURED', ev.name);
+          Clips.capture('kill');
           showClipChip();
           AudioSys.devour();
           Game.punch = 0.88;
@@ -1891,24 +1894,38 @@ const Clips = {
       if (this.on && this.recs[i] === rec && rec.state === 'recording'){ rec.stop(); this.cycle(i); }
     }, 30000);
   },
-  save(label){
-    if (!this.on){ toast('clips are not supported in this browser', false); return; }
-    const i = (Date.now() - this.t0[0]) >= (Date.now() - this.t0[1]) ? 0 : 1;
+  /* freeze the moment the instant it happens — the death/kill lands at
+     the END of the clip, and idling on the death screen can't scroll
+     the window past it */
+  capture(label){
+    if (!this.on) return;
+    let i = -1, best = -1;
+    for (let k = 0; k < 2; k++){
+      const r2 = this.recs[k];
+      if (!r2 || r2.state !== 'recording') continue;
+      const el = Date.now() - this.t0[k];
+      if (el > best){ best = el; i = k; }
+    }
+    if (i < 0) return;
     const rec = this.recs[i];
-    if (!rec || rec.state !== 'recording'){ toast('no footage yet', false); return; }
     clearTimeout(this.timers[i]);
     rec.onstop = () => {
-      const blob = new Blob(this.chunks[i], { type: this.mime });
-      const a = document.createElement('a');
-      a.href = URL.createObjectURL(blob);
-      a.download = `souplings-${label}.${this.mime.includes('mp4') ? 'mp4' : 'webm'}`;
-      a.click();
-      setTimeout(() => URL.revokeObjectURL(a.href), 30000);
-      toast('clip saved \u2014 post the carnage', true);
-      markShared();
+      this.pending = { blob: new Blob(this.chunks[i], { type: this.mime }), label };
       if (this.on) this.cycle(i);
     };
     rec.stop();
+  },
+  save(label){
+    if (!this.on){ toast('clips are not supported in this browser', false); return; }
+    const p = this.pending;
+    if (!p){ toast('no footage yet', false); return; }
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(p.blob);
+    a.download = `souplings-${p.label || label}.${this.mime.includes('mp4') ? 'mp4' : 'webm'}`;
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(a.href), 30000);
+    toast('clip saved \u2014 post the carnage', true);
+    markShared();
   }
 };
 $('clipDeathBtn').addEventListener('click', () => Clips.save('demise'));
