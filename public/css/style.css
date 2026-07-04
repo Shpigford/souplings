@@ -995,6 +995,18 @@ button.danger:hover{ box-shadow:0 0 16px rgba(255,122,92,.25); }
 }
 #chronicle .recGrid .lbl, #menuChronicle .recGrid .lbl{ color:var(--mint-dim); text-align:right; }
 #chronicle .recGrid .val, #menuChronicle .recGrid .val{ color:var(--gold); opacity:.9; }
+#chronicle .todayBoard, #menuChronicle .todayBoard{
+  display:grid;
+  grid-template-columns:auto auto auto;
+  gap:.15rem .8rem;
+  justify-content:center;
+  text-align:left;
+  margin-top:.45rem;
+}
+#chronicle .tbR, #menuChronicle .tbR{ color:var(--mint-dim); }
+#chronicle .tbT, #menuChronicle .tbT{ color:var(--gold); }
+#chronicle .tbN, #menuChronicle .tbN{ color:rgba(234,255,245,.75); }
+#chronicle .tbN.me, #menuChronicle .tbN.me{ color:var(--mint); }
 #chronicle .today, #menuChronicle .today{ color:var(--mint); opacity:.8; display:block; margin-top:.55rem; }
 
 /* ============ short viewports ============ */

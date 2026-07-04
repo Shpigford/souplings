@@ -92,8 +92,9 @@ export class Soup {
   ensureDaily(){
     const k = this.dayKey();
     if (!this.daily || this.daily.date !== k){
-      this.daily = { date: k, ashore: 0, deaths: 0, fastest: null, deadliest: null };
+      this.daily = { date: k, ashore: 0, deaths: 0, fastest: null, deadliest: null, top: [] };
     }
+    if (!this.daily.top) this.daily.top = [];
     return this.daily;
   }
 
@@ -1043,6 +1044,8 @@ export class Soup {
         const day = this.ensureDaily();
         day.ashore++;
         if (!day.fastest || rs.survived < day.fastest.s) day.fastest = { name: cl.name, s: rs.survived };
+        day.top = [...(day.top || []), { name: cl.name, s: rs.survived }]
+          .sort((a, b) => a.s - b.s).slice(0, 10);
         this.saveDaily();
         if (!this.stats.fastest || rs.survived < this.stats.fastest.s){
           this.stats.fastest = { name: cl.name, s: rs.survived };

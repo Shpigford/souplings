@@ -352,9 +352,14 @@ function updateChronicle(){
       `</div>`;
   }
   if (w.daily && (w.daily.ashore || w.daily.deaths)){
-    let today = `today · ${w.daily.ashore} emerged · ${w.daily.deaths} lost`;
-    if (w.daily.fastest) today += ` · best ${fmtTime(w.daily.fastest.s)} ${esc(w.daily.fastest.name)}`;
-    html += `<span class="today">${today}</span>`;
+    html += `<span class="today">today's tide · ${w.daily.ashore} emerged · ${w.daily.deaths} lost</span>`;
+    const top = (w.daily.top || []).slice(0, 5);
+    if (top.length){
+      const meName = Game.myName || savedName();
+      html += `<div class="todayBoard">` + top.map((r, i) =>
+        `<span class="tbR">${i + 1}</span><span class="tbT">${fmtTime(r.s)}</span>` +
+        `<span class="tbN${r.name === meName ? ' me' : ''}">${esc(r.name)}</span>`).join('') + `</div>`;
+    }
   }
   ui.chronicle.innerHTML = html;
   ui.chronicle.classList.remove('hidden');
@@ -1937,8 +1942,15 @@ function tideCardText(){
   if (lin) bits.push(`${lin > 5 ? '\u2605\u00d7' + lin : '\u2605'.repeat(lin)} dynasty`);
   if (a.kills) bits.push(`${a.kills} kill${a.kills === 1 ? '' : 's'}`);
   if (streak > 1) bits.push(`${streak}-day streak`);
+  const top = Net.world && Net.world.daily && (Net.world.daily.top || [])[0];
+  let dare = '';
+  if (top){
+    dare = a.ashore && a.survived <= top.s
+      ? `today's fastest \u2014 beat ${fmtTime(a.survived)}?\n`
+      : `fastest today ${fmtTime(top.s)} \u2014 beat it\n`;
+  }
   return `SOUPLINGS \u{1F30A} tide ${T.n} \u00b7 ${T.name}\n${line2}\n` +
-    (bits.length ? bits.join(' \u00b7 ') + '\n' : '') + 'souplings.fun';
+    (bits.length ? bits.join(' \u00b7 ') + '\n' : '') + dare + 'souplings.fun';
 }
 
 async function shareTideCard(){
