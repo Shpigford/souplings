@@ -631,6 +631,10 @@ export class Soup {
           this.events.push({ e: 'frenzy', id: cl.id });
         }
         if (m.gold) this.spawnGoldenMote();
+        if (m.feed && cl.cell && FOOD_TYPES.includes(m.feed)){
+          const f = this.world.spawnFood(m.feed, cl.cell.x, cl.cell.y);
+          this.consume(cl.cell, f);
+        }
         if (m.vault) this.spawnVault();
         if (Array.isArray(m.tp) && cl.cell){
           cl.cell.x = +m.tp[0] || 0;

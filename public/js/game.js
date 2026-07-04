@@ -1088,6 +1088,7 @@ function toast(msg, gold){
   const now = performance.now();
   if (msg === lastToastMsg && now - lastToastAt < 1500) return;
   lastToastMsg = msg; lastToastAt = now;
+  while (ui.toasts.children.length >= 4) ui.toasts.firstChild.remove();
   const el = document.createElement('div');
   el.className = 'toast' + (gold ? ' gold' : '');
   el.textContent = msg;
@@ -1673,6 +1674,11 @@ ui.shareWinBtn.addEventListener('click', shareWin);
 document.addEventListener('visibilitychange', () => {
   Game.last = null;
   document.title = document.hidden ? 'the soup simmers on…' : 'SOUPLINGS — a tide-pool evolution';
+  if (!document.hidden){
+    /* everything that happened while the tab slept is old news —
+       don't dump a wall of stale toasts on re-focus */
+    Net.events.length = 0;
+  }
 });
 
 /* touch-first copy for touch-first devices */
