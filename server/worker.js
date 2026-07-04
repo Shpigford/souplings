@@ -833,7 +833,7 @@ export class Soup {
           /* the biolume gland actually lures now — it never did before */
           const lr = p.stats.lure + p.r;
           if (d < lr && d > 1){
-            const sp = 110 * (1 - d / lr) + 25;
+            const sp = p.stats.lurePull * (1 - d / lr) + 8;
             f.vx += (p.x - f.x) / d * sp * dt * 3;
             f.vy += (p.y - f.y) / d * sp * dt * 3;
           }

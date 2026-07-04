@@ -32,8 +32,8 @@ const PARTS = {
     desc: 'A tougher hide. More health, softer blows — heavier, slower.'
   },
   gland: {
-    name: 'Biolume Gland', max: 1, cost: [40],
-    desc: 'A soft lantern. Nearby morsels drift toward your light.'
+    name: 'Biolume Gland', max: 3, cost: [30, 80, 160],
+    desc: 'A soft lantern. Morsels drift toward your light — faint at first, brighter with every level.'
   },
   /* exotic organs — each generation opens a new shelf in the chamber */
   ink: {
@@ -90,8 +90,9 @@ function deriveStats(genome, r, isPlayer){
     sense: 340 * sizeF * (1 + 0.35 * g('eye')),
     zoomOut: 1 + 0.14 * g('eye'),
     dashCd: Math.max(1.1, 2.6 - 0.5 * g('cilia')),
-    lure: g('gland') ? 150 * sizeF : 0,
-    pickup: r + 26 + (g('gland') ? 60 * sizeF : 0),
+    lure: [0, 55, 100, 150][g('gland')] * sizeF,
+    lurePull: [0, 30, 65, 110][g('gland')],
+    pickup: r + 26 + [0, 20, 40, 60][g('gland')] * sizeF,
     growthMul: 1 + 0.2 * g('osmo'),
     volt: 8 * g('volt'),
     dnaMul: 1 + 0.25 * g('helix')
