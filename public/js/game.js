@@ -491,7 +491,7 @@ window.addEventListener('keydown', e => {
     if (Game.menuOpen) closeMenu();
     else if (Game.state === 'editor') closeEditor();
     else if (Game.state === 'play') openMenu();
-  } else if (e.key >= '1' && e.key <= '6' && e.target.tagName !== 'INPUT'){
+  } else if (e.key >= '1' && e.key <= '8' && e.target.tagName !== 'INPUT'){
     if (Game.state === 'play' && !Game.menuOpen) Net.emote(+e.key - 1);
   } else if (e.key === 'm' || e.key === 'M'){
     if (AudioSys.ctx) toast(AudioSys.toggleMute() ? 'the soup falls silent' : 'the soup burbles again', false);
@@ -1910,19 +1910,6 @@ $('clipChip').addEventListener('click', () => {
   $('clipChip').classList.add('hidden');
   Clips.save('kill');
 });
-/* quick-chat UI: a bubble button that unfolds six chips */
-(function(){
-  const row = $('emoteRow');
-  EMOTES.forEach((txt, i) => {
-    const b = document.createElement('button');
-    b.className = 'emoteChip mono';
-    b.textContent = txt;
-    b.addEventListener('click', () => { Net.emote(i); row.classList.add('hidden'); });
-    row.appendChild(b);
-  });
-  $('emoteBtn').addEventListener('click', () => row.classList.toggle('hidden'));
-})();
-
 function showClipChip(){
   if (!Clips.on) return;
   const chip = $('clipChip');

@@ -192,8 +192,8 @@ const ORDERS = [
 const weekNumber = now => Math.floor((now - TIDE_EPOCH) / (7 * 86400000)) + 1;
 const orderFor = now => { const w = weekNumber(now); return { w, ...ORDERS[((w % ORDERS.length) + ORDERS.length) % ORDERS.length] }; };
 
-/* quick-chat: six preset bubbles — the soup speaks, trolls don't type */
-const EMOTES = ['blub', '\u{1FAE7}', 'RUN', 'mine.', 'well fought', '\u2665'];
+/* quick-chat: eight preset bubbles — the soup speaks, trolls don't type */
+const EMOTES = ['blub', 'RUN', 'mine.', 'well fought', 'oops', 'gg', '\u2764\uFE0F', '\u{1F608}'];
 
 const GEN_TITLES = ['Mote', 'Wriggler', 'Darter', 'Lurker', 'Sovereign of the Shallows'];
 const ROMAN = ['I', 'II', 'III', 'IV', 'V'];

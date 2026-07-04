@@ -856,37 +856,6 @@ button:disabled:hover{ transform:none; box-shadow:none; }
 button.danger{ color:var(--coral); border-color:rgba(255,122,92,.35); font-size:.7rem; }
 button.danger:hover{ box-shadow:0 0 16px rgba(255,122,92,.25); }
 
-/* quick-chat */
-#emoteBtn{
-  position:fixed;
-  left:1rem; bottom:8.6rem;
-  z-index:2;
-  width:2.4rem; height:2.4rem;
-  padding:0;
-  font-size:1rem;
-  color:var(--mint-dim);
-  background:rgba(4,18,29,.7);
-  border:1px solid rgba(125,255,212,.25);
-  border-radius:50%;
-}
-#emoteBtn:hover{ color:var(--mint); }
-#emoteRow{
-  position:fixed;
-  left:1rem; bottom:11.4rem;
-  z-index:2;
-  display:flex; flex-direction:column; gap:.35rem;
-}
-.emoteChip{
-  font-size:.68rem;
-  padding:.5em 1em;
-  text-align:left;
-  color:var(--ink);
-  background:rgba(4,18,29,.85);
-  border:1px solid rgba(125,255,212,.35);
-  border-radius:999px;
-}
-.emoteChip:hover{ border-color:var(--mint); box-shadow:0 0 10px rgba(125,255,212,.25); }
-
 /* clip chip: appears after your kills */
 #clipChip{
   position:fixed;
