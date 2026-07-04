@@ -831,6 +831,30 @@ button:disabled:hover{ transform:none; box-shadow:none; }
 
 #about{ overflow-y:auto; align-items:flex-start; }
 #about .aboutCard{ margin:auto; }
+#achRow{
+  margin-top:1.1rem;
+  border-top:1px solid rgba(125,255,212,.12);
+  padding-top:.9rem;
+  display:flex; flex-wrap:wrap; gap:.35rem; justify-content:center;
+}
+#achRow .achHead{
+  flex-basis:100%;
+  letter-spacing:.25em; text-transform:uppercase;
+  font-size:.56rem; color:var(--mint-dim);
+  margin-bottom:.3rem;
+}
+.achChip{
+  font-size:.58rem; letter-spacing:.08em;
+  padding:.35em .8em;
+  border:1px solid rgba(125,255,212,.15);
+  border-radius:999px;
+  color:rgba(234,255,245,.35);
+}
+.achChip.got{
+  color:var(--gold);
+  border-color:rgba(255,199,90,.5);
+  background:rgba(255,199,90,.07);
+}
 #menuChronicle{
   margin-top:1.2rem;
   border-top:1px solid rgba(125,255,212,.12);
@@ -960,7 +984,31 @@ button.danger:hover{ box-shadow:0 0 16px rgba(255,122,92,.25); }
 
 /* ============ the chronicle ============ */
 
-#chronicle, #menuChronicle{
+#chronicle, #achRow{
+  margin-top:1.1rem;
+  border-top:1px solid rgba(125,255,212,.12);
+  padding-top:.9rem;
+  display:flex; flex-wrap:wrap; gap:.35rem; justify-content:center;
+}
+#achRow .achHead{
+  flex-basis:100%;
+  letter-spacing:.25em; text-transform:uppercase;
+  font-size:.56rem; color:var(--mint-dim);
+  margin-bottom:.3rem;
+}
+.achChip{
+  font-size:.58rem; letter-spacing:.08em;
+  padding:.35em .8em;
+  border:1px solid rgba(125,255,212,.15);
+  border-radius:999px;
+  color:rgba(234,255,245,.35);
+}
+.achChip.got{
+  color:var(--gold);
+  border-color:rgba(255,199,90,.5);
+  background:rgba(255,199,90,.07);
+}
+#menuChronicle{
   margin:1.4rem auto 0;
   padding:.9rem 1.2rem;
   max-width:30rem;

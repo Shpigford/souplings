@@ -201,6 +201,8 @@ Net.onAshore = m => {
   const L2 = m.life;
   const winStars = (s.lineage || 1) > 5 ? `★×${s.lineage}` : stars;
   Game.lastArtifact = { gen: 5, survived: s.survived, kills: s.kills, ashore: true };
+  award('emerged');
+  if (s.survived < 600) award('swift');
   ui.winStats.innerHTML =
     statRow([
       [fmtTime(s.survived), 'this run'],
@@ -899,7 +901,8 @@ function processEvents(){
         if (ev.who === Net.myId && AudioSys.ctx) AudioSys.crack();
         break;
       }
-      case 'vbreak': {
+      case 'vbreak':
+        if (ev.id === Net.myId) award('cracker'); {
         world.burst(ev.x, ev.y, 'rgba(255,214,107,0.95)', 30, 260, 1.1, 3.5);
         if (ev.id === Net.myId){
           showBanner('CRACKED', `+${ev.cut} DNA and the hoard spills out`);
@@ -915,6 +918,7 @@ function processEvents(){
         if (AudioSys.ctx) AudioSys.gold();
         break;
       case 'goldgone':
+        if (ev.id === Net.myId) award('golden');
         if (ev.id === Net.myId){
           showBanner('+60 DNA', 'the golden mote is yours');
           AudioSys.gold();
@@ -924,6 +928,7 @@ function processEvents(){
         break;
       case 'vengeance': {
         killFeedLine(`⚔ ${ev.a} repaid ${ev.t}`, true);
+        if (ev.id === Net.myId) award('avenger');
         toast(`⚔ ${ev.a} repaid ${ev.t}`, true);
         if (ev.id === Net.myId){
           showBanner('VENGEANCE', `${ev.t} has answered for it`);
@@ -1058,6 +1063,7 @@ function update(dt){
     updateBoard();
     updateEditorSafety();
     cacheOwnGenome();
+    achTick();
     if (Game.state === 'title' || Game.menuOpen){ updateConnStatus(); updateChronicle(); }
   }
 }
@@ -2047,6 +2053,56 @@ function showClipChip(){
   chip._t = setTimeout(() => chip.classList.add('hidden'), 8000);
 }
 
+/* ============ achievements: quiet trophies, kept on this device ============ */
+const ACH = [
+  ['first_blood', 'First Blood', 'devour another creature'],
+  ['pack_hunter', 'Pack Hunter', '5 kills in one run'],
+  ['golden', 'Gold Tongue', 'claim a golden mote'],
+  ['cracker', 'Vault Cracker', 'crack a DNA vault'],
+  ['frenzied', 'Blood in the Water', 'ignite a feeding frenzy'],
+  ['survivor', 'Old Soup', 'survive ten minutes in one run'],
+  ['emerged', 'Landfall', 'crawl ashore'],
+  ['swift', 'Born Running', 'emerge in under ten minutes'],
+  ['dynasty3', 'A True Line', 'reach dynasty \u2605\u2605\u2605'],
+  ['streak3', 'Tidefaithful', 'a 3-day streak'],
+  ['avenger', 'Vengeance', 'kill your nemesis'],
+  ['spread', 'Sporecaster', 'share anything']
+];
+function achHave(){
+  try { return JSON.parse(localStorage.getItem('soup_ach') || '{}'); } catch (e) { return {}; }
+}
+function award(key){
+  const have = achHave();
+  if (have[key]) return;
+  have[key] = Date.now();
+  try { localStorage.setItem('soup_ach', JSON.stringify(have)); } catch (e) {}
+  const a = ACH.find(x => x[0] === key);
+  if (a) toast(`\u{1F3C6} achievement \u2014 ${a[1]}`, true);
+  buildAchRow();
+}
+function buildAchRow(){
+  const el = $('achRow');
+  if (!el) return;
+  const have = achHave();
+  const n = Object.keys(have).length;
+  el.innerHTML = `<div class="achHead">trophies \u00b7 ${n}/${ACH.length}</div>` +
+    ACH.map(([k, name, how]) =>
+      `<span class="achChip${have[k] ? ' got' : ''}" title="${how}">${name}</span>`).join('');
+  el.classList.remove('hidden');
+}
+function achTick(){
+  if (!Net.joined) return;
+  if (Net.me.kills >= 1) award('first_blood');
+  if (Net.me.kills >= 5) award('pack_hunter');
+  if (Net.me.frenzy) award('frenzied');
+  if (Net.me.el >= 600) award('survivor');
+  if (cachedLineage() >= 3) award('dynasty3');
+  let stk = 0;
+  try { stk = +localStorage.getItem('soup_streak') || 0; } catch (e) {}
+  if (stk >= 3) award('streak3');
+  try { if (localStorage.getItem('soup_shared')) award('spread'); } catch (e) {}
+}
+
 /* the tide card: a text-native run story for the group chat */
 function tideCardText(){
   const a = Game.lastArtifact;
@@ -2119,6 +2175,7 @@ function openMenu(){
     buildHueRow();
   }
   updateChronicle();
+  buildAchRow();
   menuSafetyFlag();
 }
 function closeMenu(){
