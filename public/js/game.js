@@ -1913,7 +1913,7 @@ function saveBests(b){
    Two staggered recorders, each restarted every 30s, so at any moment
    one of them holds 15-30s of valid, playable footage. */
 const Clips = {
-  on: false, recs: [null, null], chunks: [[], []], t0: [0, 0], timers: [null, null],
+  on: false, recs: [null, null], t0: [0, 0], timers: [null, null],
   mime: null, stream: null,
   start(){
     if (this.on || !('MediaRecorder' in window) || !canvas.captureStream) return;
@@ -1923,19 +1923,23 @@ const Clips = {
     try { this.stream = canvas.captureStream(24); } catch (e) { return; }
     this.on = true;
     this.cycle(0);
-    this.timers[1] = setTimeout(() => { if (this.on) this.cycle(1); }, 15000);
+    this.timers[1] = setTimeout(() => { if (this.on) this.cycle(1); }, 10000);
   },
   cycle(i){
     const rec = new MediaRecorder(this.stream, { mimeType: this.mime, videoBitsPerSecond: 2200000 });
-    this.chunks[i] = [];
-    rec.ondataavailable = e => { if (e.data.size) this.chunks[i].push(e.data); };
+    /* each recorder owns its chunks: a recycled recorder's final async
+       flush must never land in its successor's array (that bug glued
+       30s of stale footage in front of the real moment) */
+    const chunks = [];
+    rec.ondataavailable = e => { if (e.data.size) chunks.push(e.data); };
+    rec._chunks = chunks;
     rec.start();
     this.recs[i] = rec;
     this.t0[i] = Date.now();
     clearTimeout(this.timers[i]);
     this.timers[i] = setTimeout(() => {
       if (this.on && this.recs[i] === rec && rec.state === 'recording'){ rec.stop(); this.cycle(i); }
-    }, 30000);
+    }, 20000);
   },
   /* freeze the moment the instant it happens — the death/kill lands at
      the END of the clip, and idling on the death screen can't scroll
@@ -1953,7 +1957,7 @@ const Clips = {
     const rec = this.recs[i];
     clearTimeout(this.timers[i]);
     rec.onstop = () => {
-      this.pending = { blob: new Blob(this.chunks[i], { type: this.mime }), label };
+      this.pending = { blob: new Blob(rec._chunks, { type: this.mime }), label };
       if (this.on) this.cycle(i);
     };
     rec.stop();
