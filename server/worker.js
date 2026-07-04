@@ -295,7 +295,9 @@ export class Soup {
     /* body-checks scale with how badly you are outweighed — a giant
        shouldering you should hurt, not tickle */
     const bulk = att.r > def.r * 1.15 ? Math.min(22, 2 + (att.r / def.r - 1) * 12) : 0;
-    const dmg = armed + bulk;
+    let dmg = armed + bulk;
+    /* the wild is never harmless: every NPC contact stings a player */
+    if (!att.isPlayer && def.isPlayer) dmg = Math.max(dmg, 4 + att.r * 0.06);
     if (dmg <= 0){
       /* a player harmlessly bonking something deserves an explanation, once in a while */
       if (att.isPlayer && att.client && Date.now() - (att.client.lastBumpHint || 0) > 20000){
@@ -304,7 +306,7 @@ export class Soup {
       }
       return;
     }
-    if (!att.isPlayer && !att.genome.aggro && !bulk) return;
+    if (!att.isPlayer && !def.isPlayer && !att.genome.aggro && !bulk) return;
     if (att.isPlayer && att.iframes > 1.5) att.iframes = 0;   // spawn shields don't snipe
     att.attackCd = 0.55;
     att.biteT = 0.25;
