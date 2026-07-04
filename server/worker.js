@@ -1248,6 +1248,7 @@ export class Soup {
             t: 'you', dna: cl.run.dna, growth: +cl.run.growth.toFixed(1),
             need: cl.run.need, gen: cl.run.gen, cyst: cl.cyst || 0,
             reab: cl.run.reabsorbs || 0,
+            kills: cl.run.kills, el: Math.round((Date.now() - cl.run.joinT) / 1000),
             frenzy: cl.frenzyUntil > Date.now() ? 1 : 0,
             slow: cl.slowed ? 1 : 0
           }));

@@ -1068,7 +1068,7 @@ function updateCamera(dt){
   Game.cam.zoom = damp(Game.cam.zoom, tz * Game.punch, 2.2, dt);
 }
 
-const hudCache = { hp: -1, gr: -1, dna: -1, gen: -1, lin: -1 };
+const hudCache = { hp: -1, gr: -1, dna: -1, gen: -1, lin: -1, kills: -1, el: -1 };
 function updateHUD(){
   if (!Net.joined) return;
   const meP = Game.mePuppet;
@@ -1079,6 +1079,15 @@ function updateHUD(){
   }
   const gr = Math.round(clamp(me.growth / me.need, 0, 1) * 100);
   if (gr !== hudCache.gr){ ui.growthFill.style.width = gr + '%'; hudCache.gr = gr; }
+  if ((me.kills || 0) !== hudCache.kills){
+    hudCache.kills = me.kills || 0;
+    $('killCount').textContent = hudCache.kills;
+    $('killBox').classList.toggle('hidden', !hudCache.kills);
+  }
+  if ((me.el || 0) !== hudCache.el){
+    hudCache.el = me.el || 0;
+    $('runClock').textContent = fmtTime(hudCache.el);
+  }
   if (me.dna !== hudCache.dna){
     ui.dnaCount.textContent = me.dna;
     ui.dnaCount2.textContent = me.dna;

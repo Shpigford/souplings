@@ -866,6 +866,21 @@ button:disabled:hover{ transform:none; box-shadow:none; }
 button.danger{ color:var(--coral); border-color:rgba(255,122,92,.35); font-size:.7rem; }
 button.danger:hover{ box-shadow:0 0 16px rgba(255,122,92,.25); }
 
+#killBox{
+  margin-left:.6rem;
+  padding-left:.7rem;
+  border-left:1px solid rgba(125,255,212,.18);
+  font-family:var(--font-mono);
+  font-size:.78rem;
+  color:var(--coral);
+}
+#runClock{
+  font-size:.6rem;
+  color:var(--mint-dim);
+  letter-spacing:.12em;
+  margin-top:.15rem;
+}
+
 /* clip chip: appears after your kills */
 #clipChip{
   position:fixed;
