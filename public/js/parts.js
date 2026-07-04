@@ -5,7 +5,7 @@
 const PARTS = {
   flagellum: {
     name: 'Flagellum', max: 3, cost: [20, 60, 130],
-    desc: 'A whip of a tail. Each level adds raw speed.'
+    desc: 'A whip of a tail. Raw speed — but the metabolism thins your hide.'
   },
   cilia: {
     name: 'Cilia', max: 3, cost: [15, 45, 100],
@@ -13,15 +13,15 @@ const PARTS = {
   },
   spike: {
     name: 'Spines', max: 3, cost: [25, 70, 150],
-    desc: 'Bristling defenses. Contact damage, and bites hurt you less.'
+    desc: 'Bristling defenses. Contact damage, softer bites — and the drag slows you.'
   },
   jaw: {
     name: 'Proboscis Jaw', max: 3, cost: [30, 80, 170],
-    desc: 'Snapping mandibles. Big bite damage; meat nourishes you more.'
+    desc: 'Snapping mandibles. Big bites, richer meat — greens lose their savor.'
   },
   filter: {
     name: 'Filter Mouth', max: 3, cost: [20, 55, 120],
-    desc: 'Baleen for the small stuff. Algae and motes are worth more.'
+    desc: 'Baleen for the small stuff. Algae and motes are worth more; meat, less.'
   },
   eye: {
     name: 'Ocelli', max: 2, cost: [15, 50],
@@ -29,7 +29,7 @@ const PARTS = {
   },
   membrane: {
     name: 'Thick Membrane', max: 3, cost: [20, 60, 140],
-    desc: 'A tougher hide. More health, shrug off a little damage.'
+    desc: 'A tougher hide. More health, softer blows — heavier, slower.'
   },
   gland: {
     name: 'Biolume Gland', max: 1, cost: [40],
@@ -46,7 +46,7 @@ const PARTS = {
   },
   osmo: {
     name: 'Osmotic Core', max: 2, cost: [110, 190], gen: 4,
-    desc: 'Waste nothing. Every meal feeds your growth further.'
+    desc: 'Waste nothing. Every meal feeds your growth — through thinner walls.'
   },
   /* royal organs — only emerged dynasties may grow these */
   helix: {
@@ -72,15 +72,21 @@ function deriveStats(genome, r, isPlayer){
   const p = genome.parts;
   const g = k => p[k] || 0;
   const sizeF = r / 26;
-  const speed = 150 * sizeF * (1 + 0.33 * g('flagellum'));
+  /* every serious organ costs something: armor is heavy, speed is
+     fragile, and a specialised gut spoils the other diet */
+  const speed = 150 * sizeF * (1 + 0.33 * g('flagellum'))
+    * (1 - 0.05 * g('spike') - 0.04 * g('membrane'));
   return {
     speed,
     steerK: 3.2 + 1.1 * g('cilia'),
-    maxHp: (isPlayer ? 55 : 40) + 26 * g('membrane') + (isPlayer ? 0 : r * 0.45),
+    maxHp: Math.max(25,
+      (isPlayer ? 55 : 40) + 26 * g('membrane')
+      - 6 * g('flagellum') - 8 * g('osmo')
+      + (isPlayer ? 0 : r * 0.45)),
     dmg: 3 + 6 * g('spike') + 8 * g('jaw'),
     armor: clamp(0.12 * g('spike') + 0.10 * g('membrane'), 0, 0.5),
-    algaeMul: 1 + 0.35 * g('filter'),
-    meatMul: 1 + 0.5 * g('jaw'),
+    algaeMul: (1 + 0.35 * g('filter')) * (1 - 0.15 * g('jaw')),
+    meatMul: (1 + 0.5 * g('jaw')) * (1 - 0.15 * g('filter')),
     sense: 340 * sizeF * (1 + 0.35 * g('eye')),
     zoomOut: 1 + 0.14 * g('eye'),
     dashCd: Math.max(1.1, 2.6 - 0.5 * g('cilia')),
