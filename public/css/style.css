@@ -265,6 +265,13 @@ button kbd{ border-color:rgba(4,18,29,.4); color:inherit; }
 .menuHueRow{ display:flex; gap:.5rem; justify-content:center; margin-bottom:.7rem; }
 #identApply{ font-size:.68rem; }
 
+.dynastyLine{
+  margin:.35rem 0 1.1rem;
+  color:var(--gold);
+  opacity:.85;
+  animation:riseIn .7s .55s ease both;
+}
+
 #beginBtn{
   font-size:1.25rem;
   padding:.85em 2.2em;
@@ -743,10 +750,19 @@ button.danger:hover{ box-shadow:0 0 16px rgba(255,122,92,.25); }
   letter-spacing:.3em;
   text-transform:uppercase;
   color:var(--mint-dim);
-  margin-bottom:.3rem;
+  margin-bottom:.55rem;
 }
-#chronicle .rec{ color:var(--gold); opacity:.85; }
-#chronicle .today{ color:var(--mint); opacity:.8; }
+#chronicle .counts{ color:rgba(234,255,245,.55); margin-bottom:.55rem; }
+#chronicle .recGrid{
+  display:grid;
+  grid-template-columns:auto auto;
+  gap:.15rem 1.1rem;
+  justify-content:center;
+  text-align:left;
+}
+#chronicle .recGrid .lbl{ color:var(--mint-dim); text-align:right; }
+#chronicle .recGrid .val{ color:var(--gold); opacity:.9; }
+#chronicle .today{ color:var(--mint); opacity:.8; display:block; margin-top:.55rem; }
 
 /* ============ small screens ============ */
 

@@ -441,7 +441,7 @@ export class Soup {
     cl.ashore = false;
     cl.runBanked = false;
     this.spawnPlayerCell(cl, near);
-    this.send(cl, { t: 'joined', name: cl.name, lineage: cl.lineage });
+    this.send(cl, { t: 'joined', name: cl.name, lineage: cl.lineage, life: this.lifeView(cl) });
   }
 
   /* -------------------- messages -------------------- */
@@ -654,7 +654,7 @@ export class Soup {
       case 'respawn': {
         if (cl.alive) break;
         if (cl.ashore || !cl.run) this.freshRun(cl);
-        else { this.spawnPlayerCell(cl); this.send(cl, { t: 'joined', name: cl.name, lineage: cl.lineage }); }
+        else { this.spawnPlayerCell(cl); this.send(cl, { t: 'joined', name: cl.name, lineage: cl.lineage, life: this.lifeView(cl) }); }
         break;
       }
       case 'debug': {

@@ -84,6 +84,7 @@ Net.onJoined = m => {
   try {
     localStorage.setItem('soup_name', m.name);
     localStorage.setItem('soup_lineage', String(m.lineage || 0));
+    if (m.life) localStorage.setItem('soup_life', JSON.stringify(m.life));
   } catch (e) {}
   buildHueRow();
   ui.specName.textContent = m.name;
@@ -124,7 +125,7 @@ Net.onDead = m => {
   const lin = cachedLineage();
   const dynastyLine = L
     ? `<span class="gold">your dynasty — ${lin ? '★'.repeat(Math.min(5, lin)) + (lin > 5 ? '×' + lin : '') + ' · ' : ''}` +
-      `${L.runs} speck${L.runs === 1 ? '' : 's'} lived · ${fmtTime(L.time)} in the soup · ` +
+      `${L.runs} speck${L.runs === 1 ? '' : 's'} lived · ${fmtLong(L.time)} in the soup · ` +
       `${L.dna} DNA · ${L.kills} kills all-time</span><br>`
     : '';
   ui.deathStats.innerHTML =
@@ -210,6 +211,29 @@ Net.onHint = m => {
   toast(m.msg, false);
 };
 
+function cachedLife(){
+  try { return JSON.parse(localStorage.getItem('soup_life') || 'null'); } catch (e) { return null; }
+}
+
+/* the title screen greets a returning dynasty like one */
+function updateTitleDynasty(){
+  const el = $('dynastyLine');
+  if (!el) return;
+  const lin = cachedLineage();
+  const life = cachedLife();
+  if (!lin && !(life && life.runs)){
+    el.classList.add('hidden');
+    ui.beginBtn.textContent = 'Begin as a speck';
+    return;
+  }
+  const stars = lin ? (lin > 5 ? `★×${lin}` : '★'.repeat(lin)) : '';
+  let line = stars ? `${stars} dynasty` : 'a returning drifter';
+  if (life && life.runs) line += ` · ${life.runs} speck${life.runs === 1 ? '' : 's'} lived · ${fmtLong(life.time || 0)} in the soup`;
+  el.textContent = line;
+  el.classList.remove('hidden');
+  ui.beginBtn.textContent = lin ? 'Rejoin the soup' : 'Begin as a speck';
+}
+
 function updateConnStatus(){
   if (!ui.connStatus) return;
   let msg, ok = false;
@@ -245,21 +269,23 @@ function updateChronicle(){
     ui.chronicle.classList.remove('hidden');
     return;
   }
-  const lines = [
-    `<div class="chronTitle">the chronicle</div>`,
-    `${w.online} adrift now · ${w.joins} specks have lived`,
-    `${w.ashore} crawled ashore · ${w.deaths} were reabsorbed`
-  ];
-  if (w.pvp) lines.push(`${w.pvp} drifters ate each other`);
-  if (w.fastest) lines.push(`<span class="rec">fastest emergence — ${esc(w.fastest.name)}, ${fmtTime(w.fastest.s)}</span>`);
-  if (w.deadliest && w.deadliest.n > 0) lines.push(`<span class="rec">deadliest — ${esc(w.deadliest.name)}, ${w.deadliest.n} kills</span>`);
-  if (w.dynasty && w.dynasty.n > 1) lines.push(`<span class="rec">greatest dynasty — ${esc(w.dynasty.name)}, ${w.dynasty.n} emergences</span>`);
-  if (w.daily && (w.daily.ashore || w.daily.deaths)){
-    let today = `today — ${w.daily.ashore} emerged · ${w.daily.deaths} reabsorbed`;
-    if (w.daily.fastest) today += ` · fastest: ${esc(w.daily.fastest.name)} ${fmtTime(w.daily.fastest.s)}`;
-    lines.push(`<span class="today">${today}</span>`);
+  let html = `<div class="chronTitle">the chronicle</div>`;
+  html += `<div class="counts">${w.online} adrift · ${w.joins} lived · ${w.ashore} ashore · ${w.deaths} reabsorbed${w.pvp ? ` · ${w.pvp} eaten` : ''}</div>`;
+  const recs = [];
+  if (w.fastest) recs.push(['fastest', `${fmtTime(w.fastest.s)} · ${esc(w.fastest.name)}`]);
+  if (w.deadliest && w.deadliest.n > 0) recs.push(['deadliest', `${w.deadliest.n} kills · ${esc(w.deadliest.name)}`]);
+  if (w.dynasty && w.dynasty.n > 1) recs.push(['dynasty', `★${w.dynasty.n} · ${esc(w.dynasty.name)}`]);
+  if (recs.length){
+    html += `<div class="recGrid">` +
+      recs.map(([l, v]) => `<span class="lbl">${l}</span><span class="val">${v}</span>`).join('') +
+      `</div>`;
   }
-  ui.chronicle.innerHTML = lines.join('<br>');
+  if (w.daily && (w.daily.ashore || w.daily.deaths)){
+    let today = `today · ${w.daily.ashore} emerged · ${w.daily.deaths} lost`;
+    if (w.daily.fastest) today += ` · best ${fmtTime(w.daily.fastest.s)} ${esc(w.daily.fastest.name)}`;
+    html += `<span class="today">${today}</span>`;
+  }
+  ui.chronicle.innerHTML = html;
   ui.chronicle.classList.remove('hidden');
 }
 
@@ -1111,6 +1137,12 @@ function fmtTime(s){
   return `${m}:${String(ss).padStart(2, '0')}`;
 }
 
+/* lifetime totals outgrow M:SS fast */
+function fmtLong(s){
+  const h = Math.floor(s / 3600);
+  return h > 0 ? `${h}h ${Math.floor((s % 3600) / 60)}m` : fmtTime(s);
+}
+
 /* ============================================================
    evolution chamber (buys are server-validated)
    ============================================================ */
@@ -1521,6 +1553,7 @@ function backToTitle(){
   ui.nameInput.value = savedName() || randomSpeciesName();
   Game.state = 'title';
   updateConnStatus();
+  updateTitleDynasty();
 }
 
 let diceSpin = 0;
@@ -1734,6 +1767,7 @@ Net.onInvite = async m => {
 };
 
 ui.nameInput.value = savedName() || randomSpeciesName();
+updateTitleDynasty();
 try { if (!localStorage.getItem('soup_menu_seen')) $('menuBtn').classList.add('pulse'); } catch (e) {}
 buildHueRow();
 buildEditor();
