@@ -1219,17 +1219,32 @@ function markShared(){
   } catch (e) {}
 }
 
+let shareBusy = false;
 async function shareWithCard(kind, statsLine, text){
-  markShared();
+  if (shareBusy) return;   // no double-fires, no double-pastes
+  shareBusy = true;
   try {
+    markShared();
     const blob = await buildShareCard(kind, statsLine);
-    const file = new File([blob], 'souplings.png', { type: 'image/png' });
-    if (blob && navigator.canShare && navigator.canShare({ files: [file] })){
-      await navigator.share({ files: [file], text: `${text}\n${location.origin}` });
+    const touch = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
+    if (blob && touch && navigator.canShare){
+      const file = new File([blob], 'souplings.png', { type: 'image/png' });
+      if (navigator.canShare({ files: [file] })){
+        await navigator.share({ files: [file], text: `${text}\n${location.origin}` });
+        return;
+      }
+    }
+    if (blob && navigator.clipboard && window.ClipboardItem){
+      await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })]);
+      toast('card copied \u2014 paste it anywhere', true);
       return;
     }
-  } catch (e) { /* fall through to text */ }
-  shareText(text);
+    await shareText(text);
+  } catch (e) {
+    try { await shareText(text); } catch (e2) {}
+  } finally {
+    shareBusy = false;
+  }
 }
 
 function updateBoard(){
@@ -2128,9 +2143,17 @@ $('specimenBtn').addEventListener('click', async () => {
   const blob = await buildShareCard('specimen', lines);
   if (!blob) return;
   markShared();
+  const touch = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
   const file = new File([blob], 'souplings-specimen.png', { type: 'image/png' });
-  if (navigator.canShare && navigator.canShare({ files: [file] })){
+  if (touch && navigator.canShare && navigator.canShare({ files: [file] })){
     try { await navigator.share({ files: [file], text: `my soupling \u2014 ${location.origin}` }); return; } catch (e) {}
+  }
+  if (navigator.clipboard && window.ClipboardItem){
+    try {
+      await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })]);
+      toast('specimen copied \u2014 paste it anywhere', true);
+      return;
+    } catch (e) { /* fall through to download */ }
   }
   const a = document.createElement('a');
   a.href = URL.createObjectURL(blob);
