@@ -6,7 +6,7 @@
 
 import {
   Cell, World, PARTS, PART_KEYS, FOOD_TYPES, NEWBIE_R, HUE_UNLOCKS, TRAIL_UNLOCKS, SHAPE_UNLOCKS,
-  capacityFor, genomeLevels, MOUTH_KEYS, tideFor, weekNumber, orderFor,
+  capacityFor, genomeLevels, MOUTH_KEYS, tideFor, weekNumber, orderFor, EMOTES,
   randomGenome, partCost, randomSpeciesName, isValidSpeciesName, growthNeedFor,
   rand, randInt, pick, clamp, dist, TAU
 } from './sim.gen.mjs';
@@ -602,6 +602,15 @@ export class Soup {
       case 'editor':
         cl.editorOpen = !!m.open;
         break;
+      case 'emote': {
+        const i = +m.i;
+        if (!cl.alive || !Number.isInteger(i) || i < 0 || i >= EMOTES.length) break;
+        const now = Date.now();
+        if (now - (cl.lastEmoteAt || 0) < 1500) break;   // one bubble per breath
+        cl.lastEmoteAt = now;
+        this.events.push({ e: 'emote', id: cl.id, i });
+        break;
+      }
       case 'invite': {
         if (!cl.inviteCode){
           cl.inviteCode = Math.random().toString(36).slice(2, 8);

@@ -491,6 +491,8 @@ window.addEventListener('keydown', e => {
     if (Game.menuOpen) closeMenu();
     else if (Game.state === 'editor') closeEditor();
     else if (Game.state === 'play') openMenu();
+  } else if (e.key >= '1' && e.key <= '6' && e.target.tagName !== 'INPUT'){
+    if (Game.state === 'play' && !Game.menuOpen) Net.emote(+e.key - 1);
   } else if (e.key === 'm' || e.key === 'M'){
     if (AudioSys.ctx) toast(AudioSys.toggleMute() ? 'the soup falls silent' : 'the soup burbles again', false);
   } else if (e.key === 'Enter'){
@@ -807,6 +809,11 @@ function processEvents(){
       case 'orderdone': {
         showBanner('THE SOUP PREVAILS', ev.label);
         AudioSys.win && AudioSys.win();
+        break;
+      }
+      case 'emote': {
+        const p = Game.puppets.get(ev.id);
+        if (p){ p.emoteI = ev.i; p.emoteUntil = performance.now() + 2600; }
         break;
       }
       case 'apex': {
@@ -1609,6 +1616,26 @@ function render(){
         ctx.fillText(label, sx2 + 1, ly + 1);
         ctx.fillStyle = isMe ? 'rgba(125,255,212,0.9)' : 'rgba(234,255,245,0.85)';
         ctx.fillText(label, sx2, ly);
+        if (c.emoteUntil > performance.now()){
+          const alpha = Math.min(1, (c.emoteUntil - performance.now()) / 400);
+          const txt = EMOTES[c.emoteI] || '';
+          ctx.font = '13px "Fragment Mono", monospace';
+          const tw = ctx.measureText(txt).width;
+          const bx = sx2, by = ly - (dt2 ? 30 : 17);
+          ctx.globalAlpha = alpha;
+          ctx.fillStyle = 'rgba(4,18,29,0.88)';
+          ctx.strokeStyle = 'rgba(125,255,212,0.5)';
+          ctx.lineWidth = 1;
+          ctx.beginPath();
+          ctx.roundRect(bx - tw / 2 - 9, by - 12, tw + 18, 22, 10);
+          ctx.fill(); ctx.stroke();
+          ctx.beginPath();
+          ctx.moveTo(bx - 4, by + 10); ctx.lineTo(bx + 4, by + 10); ctx.lineTo(bx, by + 16);
+          ctx.closePath(); ctx.fill();
+          ctx.fillStyle = 'rgba(234,255,245,0.95)';
+          ctx.fillText(txt, bx, by + 4);
+          ctx.globalAlpha = 1;
+        }
         if (dt2){
           ctx.font = 'italic 10px Fraunces, Georgia, serif';
           ctx.fillStyle = 'rgba(255,214,107,0.85)';
@@ -1883,6 +1910,19 @@ $('clipChip').addEventListener('click', () => {
   $('clipChip').classList.add('hidden');
   Clips.save('kill');
 });
+/* quick-chat UI: a bubble button that unfolds six chips */
+(function(){
+  const row = $('emoteRow');
+  EMOTES.forEach((txt, i) => {
+    const b = document.createElement('button');
+    b.className = 'emoteChip mono';
+    b.textContent = txt;
+    b.addEventListener('click', () => { Net.emote(i); row.classList.add('hidden'); });
+    row.appendChild(b);
+  });
+  $('emoteBtn').addEventListener('click', () => row.classList.toggle('hidden'));
+})();
+
 function showClipChip(){
   if (!Clips.on) return;
   const chip = $('clipChip');

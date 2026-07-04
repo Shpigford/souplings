@@ -151,6 +151,7 @@ const Net = {
     this.send({ t: 'input', tx: Math.round(tx), ty: Math.round(ty), th: +th.toFixed(2), dash: !!dash });
   },
   buy(key){ this.send({ t: 'buy', key }); },
+  emote(i){ this.send({ t: 'emote', i }); },
   sell(key){ this.send({ t: 'sell', key }); },
   respawn(){ this.send({ t: 'respawn' }); }
 };
