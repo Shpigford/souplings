@@ -6,7 +6,7 @@
 
 import {
   Cell, World, PARTS, PART_KEYS, FOOD_TYPES, NEWBIE_R, HUE_UNLOCKS, TRAIL_UNLOCKS, SHAPE_UNLOCKS,
-  capacityFor, genomeLevels, MOUTH_KEYS, tideFor, weekNumber, orderFor, EMOTES,
+  capacityFor, genomeLevels, MOUTH_KEYS, tideFor, weekNumber, orderFor, EMOTES, MUT_WORDS, packMut, mutTitleFor,
   randomGenome, partCost, randomSpeciesName, isValidSpeciesName, growthNeedFor,
   rand, randInt, pick, clamp, dist, TAU
 } from './sim.gen.mjs';
@@ -495,6 +495,10 @@ export class Soup {
     this.world.cells.push(c);
     cl.cell = c;
     cl.alive = true;
+    if (cl.justHatched){
+      cl.justHatched = false;
+      this.events.push({ e: 'hatch', id: cl.id, name: cl.name, title: cl.mutTitle || '' });
+    }
     cl.input = { tx: x, ty: y, th: 0 };
   }
 
@@ -513,13 +517,47 @@ export class Soup {
     cl.ashore = false;
     cl.runBanked = false;
     this.spawnPlayerCell(cl, near);
-    this.send(cl, { t: 'joined', name: cl.name, lineage: cl.lineage, life: this.lifeView(cl), streak: cl.streak || 0 });
+    this.send(cl, { t: 'joined', name: cl.name, lineage: cl.lineage, life: this.lifeView(cl), streak: cl.streak || 0, mutTitle: cl.mutTitle || '' });
   }
 
   /* -------------------- messages -------------------- */
 
   /* custom names pass through Claude Haiku; verdicts are cached forever.
      No API key or any failure = fail closed = a generated name. */
+  /* Haiku christens the mutated form: a title and a field note */
+  async christen(cl, mu){
+    if (!this.env.ANTHROPIC_API_KEY) return;
+    const words = ['p', 'c', 'e', 'a'].map(k => MUT_WORDS[k][mu[k] || 0]).filter(Boolean).join(', ');
+    try {
+      const res = await Promise.race([
+        fetch('https://api.anthropic.com/v1/messages', {
+          method: 'POST',
+          headers: {
+            'content-type': 'application/json',
+            'x-api-key': this.env.ANTHROPIC_API_KEY,
+            'anthropic-version': '2023-06-01'
+          },
+          body: JSON.stringify({
+            model: 'claude-haiku-4-5-20251001',
+            max_tokens: 120,
+            system: 'You are a dry, delighted naturalist cataloguing tiny cartoon microbes. Given trait words, reply ONLY with JSON: {"title":"...","note":"..."}. title: an evocative 2-4 word epithet starting with "the" (e.g. "the Gloaming Frill"). note: one wry field-observation under 90 characters. Family-friendly, no puns on real names.',
+            messages: [{ role: 'user', content: 'Traits: ' + words }]
+          })
+        }),
+        new Promise((resolve, reject) => setTimeout(() => reject(new Error('timeout')), 4000))
+      ]);
+      const data = await res.json();
+      const txt = data && data.content && data.content[0] && data.content[0].text || '';
+      const j = JSON.parse(txt.slice(txt.indexOf('{'), txt.lastIndexOf('}') + 1));
+      if (j.title && /^[\w\s'",.\-]{4,40}$/.test(j.title)){
+        cl.mutTitle = j.title;
+        cl.mutNote = String(j.note || '').slice(0, 110);
+        this.saveProfile(cl);
+        this.send(cl, { t: 'christened', title: cl.mutTitle, note: cl.mutNote });
+      }
+    } catch (e) { /* the procedural title stands */ }
+  }
+
   async moderateName(name){
     const key = 'mod:' + name.toLowerCase();
     const cached = await this.state.storage.get(key);
@@ -560,7 +598,8 @@ export class Soup {
     this.state.storage.put('prof:' + cl.token, {
       v: 1, lineage: cl.lineage, name: cl.name, t: Date.now(),
       lifeTime: life.time, lifeDna: life.dna, lifeKills: life.kills, lifeRuns: life.runs,
-      streak: cl.streak || 0, streakDay: cl.streakDay || 0
+      streak: cl.streak || 0, streakDay: cl.streakDay || 0,
+      mut: cl.mut || null, mutTitle: cl.mutTitle || '', mutNote: cl.mutNote || ''
     });
   }
 
@@ -670,6 +709,9 @@ export class Soup {
             };
             cl.streak = prof.streak || 0;
             cl.streakDay = prof.streakDay || 0;
+            cl.mut = prof.mut || null;
+            cl.mutTitle = prof.mutTitle || '';
+            cl.mutNote = prof.mutNote || '';
           }
           /* daily streak: today counts; one missed day lies dormant, two breaks it */
           const today = Math.floor(Date.now() / 86400000);
@@ -725,7 +767,7 @@ export class Soup {
           }
         }
         if (resumed){
-          this.send(cl, { t: 'joined', name: cl.name, lineage: cl.lineage, life: this.lifeView(cl), streak: cl.streak, resumed: 1 });
+          this.send(cl, { t: 'joined', name: cl.name, lineage: cl.lineage, life: this.lifeView(cl), streak: cl.streak, mutTitle: cl.mutTitle || '', resumed: 1 });
           this.saveProfile(cl);
           this.events.push({ e: 'join', name });
           console.log(`[resume] ${name} (#${cl.id}) — gen ${cl.run.gen}`);
@@ -830,7 +872,7 @@ export class Soup {
       case 'respawn': {
         if (cl.alive) break;
         if (cl.ashore || !cl.run) this.freshRun(cl);
-        else { this.spawnPlayerCell(cl); this.send(cl, { t: 'joined', name: cl.name, lineage: cl.lineage, life: this.lifeView(cl), streak: cl.streak || 0 }); }
+        else { this.spawnPlayerCell(cl); this.send(cl, { t: 'joined', name: cl.name, lineage: cl.lineage, life: this.lifeView(cl), streak: cl.streak || 0, mutTitle: cl.mutTitle || '' }); }
         break;
       }
       case 'debug': {
@@ -1044,6 +1086,17 @@ export class Soup {
         const rs = this.runStats(cl);
         this.stats.ashore++;
         cl.lineage++;
+        /* the line drifts: one new permanent trait, then a hatching */
+        const mu = cl.mut || { p: 0, c: 0, e: 0, a: 0 };
+        const slot = pick(['p', 'c', 'e', 'a']);
+        const maxes = { p: 6, c: 6, e: 5, a: 4 };
+        let mv;
+        do { mv = randInt(1, maxes[slot]); } while (mv === mu[slot]);
+        mu[slot] = mv;
+        cl.mut = mu;
+        cl.mutTitle = mutTitleFor(mu);
+        cl.justHatched = true;
+        this.christen(cl, mu);   // Haiku upgrade, fire-and-forget
         /* plant the monument: the shore remembers this line forever */
         const mon = { n: cl.name, s: cl.lineage, a: rand(0, TAU), d: rand(30, 85), t: Date.now() };
         this.shore.total++;
@@ -1225,7 +1278,7 @@ export class Soup {
         Math.round(c.genome.hue), partsStr(c.genome.parts),
         (c.genome.carn ? 1 : 0) | (c.genome.aggro ? 2 : 0) | (c.isPlayer ? 4 : 0) | (c.frenzy ? 8 : 0)
       ];
-      if (c.client) row.push(c.client.name, c.client.run.gen, c.client.run.dnaTotal, c.client.lineage, c.client.trail || 0, c.client.shape || 0);
+      if (c.client) row.push(c.client.name, c.client.run.gen, c.client.run.dnaTotal, c.client.lineage, c.client.trail || 0, c.client.shape || 0, c.client.mut ? packMut(c.client.mut) : 0);
       return row;
     });
     const foodArr = world.food.map(f =>

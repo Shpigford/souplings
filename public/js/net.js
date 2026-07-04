@@ -112,6 +112,9 @@ const Net = {
       case 'toast':
         this.onToast && this.onToast(m);
         break;
+      case 'christened':
+        this.onChristened && this.onChristened(m);
+        break;
       case 'renamed':
         this.onRenamed && this.onRenamed(m);
         break;

@@ -236,11 +236,49 @@ class Cell {
   }
 }
 
+/* the egg: a mutated line hatches in front of everyone */
+function drawEgg(ctx, c, t){
+  const r = c.r * 1.15;
+  const frac = clamp(1 - (c.hatchUntil - Date.now()) / 2200, 0, 1);   // 0 fresh -> 1 hatching
+  drawGlow(ctx, c.x, c.y, r * 2.2, `hsla(${c.genome.hue},90%,70%,0.7)`, 0.25 + frac * 0.3);
+  ctx.save();
+  ctx.translate(c.x, c.y);
+  ctx.rotate(Math.sin(t * (6 + frac * 14)) * 0.09 * (0.3 + frac));
+  ctx.fillStyle = '#e8dcc3';
+  ctx.beginPath();
+  ctx.ellipse(0, 0, r * 0.82, r, 0, 0, TAU);
+  ctx.fill();
+  ctx.fillStyle = `hsla(${c.genome.hue},50%,55%,0.35)`;
+  for (let i = 0; i < 7; i++){
+    const a = i * 2.3 + 1, d = r * (0.2 + (i % 3) * 0.22);
+    ctx.beginPath();
+    ctx.arc(Math.cos(a) * d * 0.7, Math.sin(a) * d, r * 0.09, 0, TAU);
+    ctx.fill();
+  }
+  if (frac > 0.35){
+    ctx.strokeStyle = 'rgba(60,45,30,0.7)';
+    ctx.lineWidth = Math.max(1.2, r * 0.035);
+    ctx.beginPath();
+    ctx.moveTo(-r * 0.4, -r * 0.3);
+    ctx.lineTo(-r * 0.15, -r * 0.05);
+    ctx.lineTo(-r * 0.3, r * 0.2);
+    if (frac > 0.7){
+      ctx.moveTo(r * 0.1, -r * 0.5);
+      ctx.lineTo(r * 0.25, -r * 0.1);
+      ctx.lineTo(r * 0.05, r * 0.15);
+      ctx.lineTo(r * 0.3, r * 0.45);
+    }
+    ctx.stroke();
+  }
+  ctx.restore();
+}
+
 /* ============================================================
    rendering — shared by the world and the evolution preview
    ============================================================ */
 
 function drawCreature(ctx, c, t){
+  if (c.hatchUntil > Date.now()){ drawEgg(ctx, c, t); return; }
   const g = c.genome, p = g.parts, s = c.stats;
   const h = g.hue;
   const lvl = k => p[k] || 0;
@@ -259,6 +297,8 @@ function drawCreature(ctx, c, t){
 
   const r = c.r;
   const memLvl = lvl('membrane');
+  const mut = c.mut || 0;
+  const mPat = mut & 7, mCrest = (mut >> 3) & 7, mEyes = (mut >> 6) & 7, mAcc = (mut >> 9) & 7;
 
   /* ---- membrane blob points ---- */
   const shape = c.shape || 0;
@@ -359,6 +399,63 @@ function drawCreature(ctx, c, t){
     ctx.stroke();
   }
 
+  /* ---- mutation pattern, clipped to the body ---- */
+  if (mPat){
+    const ph = (h + 45) % 360;
+    ctx.save();
+    blobPath(ctx, pts);
+    ctx.clip();
+    if (mPat === 1){
+      ctx.fillStyle = `hsla(${ph},70%,68%,0.32)`;
+      for (let i = 0; i < 6; i++){
+        const a = seed * 5 + i * 1.9, d = r * (0.25 + (i % 3) * 0.22);
+        ctx.beginPath();
+        ctx.ellipse(Math.cos(a) * d, Math.sin(a) * d, r * 0.16, r * 0.13, a, 0, TAU);
+        ctx.fill();
+      }
+    } else if (mPat === 2){
+      ctx.strokeStyle = `hsla(${ph},70%,68%,0.34)`;
+      ctx.lineWidth = r * 0.13;
+      for (let i = -2; i <= 2; i++){
+        ctx.beginPath();
+        ctx.moveTo(i * r * 0.42 - r * 0.5, -r * 1.1);
+        ctx.quadraticCurveTo(i * r * 0.42 + r * 0.25, 0, i * r * 0.42 - r * 0.5, r * 1.1);
+        ctx.stroke();
+      }
+    } else if (mPat === 3){
+      ctx.strokeStyle = `hsla(${ph},70%,68%,0.3)`;
+      ctx.lineWidth = r * 0.09;
+      for (const rr of [0.42, 0.72]){
+        ctx.beginPath(); ctx.arc(0, 0, r * rr, 0, TAU); ctx.stroke();
+      }
+    } else if (mPat === 4){
+      ctx.fillStyle = `hsla(${ph},95%,80%,0.55)`;
+      for (let i = 0; i < 13; i++){
+        const a = seed * 7 + i * 2.4, d = r * (0.2 + ((i * 37) % 60) / 100);
+        ctx.beginPath();
+        ctx.arc(Math.cos(a) * d, Math.sin(a) * d, r * 0.045, 0, TAU);
+        ctx.fill();
+      }
+    } else if (mPat === 5){
+      ctx.fillStyle = `hsla(${ph},60%,60%,0.3)`;
+      ctx.beginPath();
+      ctx.ellipse(-r * 0.45, -r * 0.3, r * 0.75, r * 0.6, 0.7 + seed, 0, TAU);
+      ctx.fill();
+    } else if (mPat === 6){
+      ctx.strokeStyle = `hsla(${ph},95%,75%,0.4)`;
+      ctx.lineWidth = r * 0.05;
+      for (let i = 0; i < 6; i++){
+        const a = i / 6 * TAU + seed;
+        ctx.beginPath();
+        ctx.moveTo(Math.cos(a) * r * 0.15, Math.sin(a) * r * 0.15);
+        ctx.quadraticCurveTo(Math.cos(a + 0.4) * r * 0.55, Math.sin(a + 0.4) * r * 0.55,
+          Math.cos(a) * r * 0.95, Math.sin(a) * r * 0.95);
+        ctx.stroke();
+      }
+    }
+    ctx.restore();
+  }
+
   /* ---- nucleus & organelles ---- */
   ctx.fillStyle = `hsla(${h},60%,75%,0.3)`;
   ctx.beginPath();
@@ -419,9 +516,33 @@ function drawCreature(ctx, c, t){
   const eye = lvl('eye');
   let er = r * (0.12 + eye * 0.035);
   if (c.pokeT > 0) er *= 1.3;   /* poked: eyes go wide */
-  const blink = c.pokeT > 0 ? 1 : (((t * 0.35 + seed) % 2.7) < 0.07 ? 0.15 : 1);
-  const spots = [[r * 0.38, -r * 0.34], [r * 0.38, r * 0.34]];
+  let blink = c.pokeT > 0 ? 1 : (((t * 0.35 + seed) % 2.7) < 0.07 ? 0.15 : 1);
+  let spots = [[r * 0.38, -r * 0.34], [r * 0.38, r * 0.34]];
   if (eye >= 2) spots.push([r * 0.55, 0]);
+  if (mEyes === 1){
+    /* stalked: eyes wave on stems above the brow */
+    ctx.strokeStyle = `hsla(${h},80%,72%,0.9)`;
+    ctx.lineWidth = r * 0.06;
+    spots = [];
+    for (const sgn of [-1, 1]){
+      const wob = Math.sin(t * 3 + seed + sgn) * 0.25;
+      const tipX = r * (0.55 + wob * 0.2), tipY = sgn * r * 0.55 - r * 0.35 * 0;
+      const bx = r * 0.3, by = sgn * r * 0.3;
+      const tx2 = r * 0.6 + wob * r * 0.15, ty2 = sgn * (r * 0.62);
+      ctx.beginPath();
+      ctx.moveTo(bx, by);
+      ctx.quadraticCurveTo(r * 0.55, sgn * r * 0.5, tx2, ty2);
+      ctx.stroke();
+      spots.push([tx2, ty2]);
+    }
+  } else if (mEyes === 2){
+    spots = [[r * 0.42, 0]];
+    er *= 1.9;
+  } else if (mEyes === 3){
+    spots = [[r * 0.38, -r * 0.38], [r * 0.38, r * 0.38], [r * 0.52, 0]];
+  } else if (mEyes === 4){
+    blink = Math.min(blink, 0.55);   /* permanently drowsy */
+  }
   const px = Math.cos(Math.sin(t * 0.7 + seed)) * er * 0.28 + er * 0.2;
   for (const [ex, ey] of spots){
     ctx.fillStyle = '#f4fff9';
@@ -433,7 +554,128 @@ function drawCreature(ctx, c, t){
       ctx.beginPath();
       ctx.arc(ex + px, ey + Math.sin(t * 0.9 + seed) * er * 0.2, er * 0.52, 0, TAU);
       ctx.fill();
+      if (mEyes === 5){
+        /* star pupils */
+        ctx.fillStyle = '#ffe9a8';
+        const cxp = ex + px, cyp = ey;
+        ctx.beginPath();
+        for (let k2 = 0; k2 < 10; k2++){
+          const aa = k2 / 10 * TAU - Math.PI / 2 + t * 0.6;
+          const rr2 = (k2 % 2 ? 0.16 : 0.4) * er;
+          const pxx = cxp + Math.cos(aa) * rr2, pyy = cyp + Math.sin(aa) * rr2;
+          k2 ? ctx.lineTo(pxx, pyy) : ctx.moveTo(pxx, pyy);
+        }
+        ctx.closePath(); ctx.fill();
+      }
     }
+  }
+
+  /* ---- mutation crest ---- */
+  if (mCrest === 1){
+    ctx.strokeStyle = `hsla(${h},80%,75%,0.9)`;
+    ctx.lineWidth = r * 0.05;
+    for (const sgn of [-1, 1]){
+      const wag = Math.sin(t * 4 + seed + sgn * 2) * 0.2;
+      ctx.beginPath();
+      ctx.moveTo(r * 0.15, sgn * r * 0.2 * 0 - sgn * r * 0.15);
+      ctx.quadraticCurveTo(r * 0.7, -sgn * r * 0.7, r * (0.95 + wag), -sgn * r * (0.95 - wag * 0.5));
+      ctx.stroke();
+      ctx.fillStyle = `hsla(${(h + 45) % 360},100%,80%,0.9)`;
+      ctx.beginPath();
+      ctx.arc(r * (0.95 + wag), -sgn * r * (0.95 - wag * 0.5), r * 0.08, 0, TAU);
+      ctx.fill();
+    }
+  } else if (mCrest === 2){
+    ctx.fillStyle = `hsla(${(h + 45) % 360},70%,65%,0.5)`;
+    for (let i = 0; i < 6; i++){
+      const a = Math.PI * 0.55 + i / 5 * Math.PI * 0.9;
+      const wob = 1 + 0.12 * Math.sin(t * 2.5 + i + seed);
+      ctx.beginPath();
+      ctx.ellipse(Math.cos(a) * r * 1.02, Math.sin(a) * r * 1.02, r * 0.22 * wob, r * 0.12, a, 0, TAU);
+      ctx.fill();
+    }
+  } else if (mCrest === 3){
+    ctx.fillStyle = `hsla(${(h + 45) % 360},70%,68%,0.55)`;
+    for (let i = -2; i <= 2; i++){
+      const a = Math.PI + i * 0.24;
+      const fl = 1 + 0.15 * Math.sin(t * 5 + i);
+      ctx.save();
+      ctx.translate(Math.cos(a) * r * 0.95, Math.sin(a) * r * 0.95);
+      ctx.rotate(a);
+      ctx.beginPath();
+      ctx.moveTo(0, -r * 0.07);
+      ctx.lineTo(r * 0.5 * fl, 0);
+      ctx.lineTo(0, r * 0.07);
+      ctx.closePath(); ctx.fill();
+      ctx.restore();
+    }
+  } else if (mCrest === 4){
+    ctx.strokeStyle = `hsla(${h},70%,70%,0.7)`;
+    ctx.lineWidth = r * 0.05;
+    ctx.lineCap = 'round';
+    for (let i = 0; i < 3; i++){
+      const bx = -r * 0.2 + i * r * 0.25;
+      ctx.beginPath();
+      ctx.moveTo(bx, r * 0.9);
+      ctx.quadraticCurveTo(bx + Math.sin(t * 3 + i + seed) * r * 0.25, r * 1.3, bx - Math.sin(t * 2 + i) * r * 0.2, r * 1.55);
+      ctx.stroke();
+    }
+  } else if (mCrest === 5){
+    ctx.fillStyle = 'rgba(244,255,249,0.85)';
+    for (const sgn of [-1, 1]){
+      ctx.save();
+      ctx.translate(r * 0.25, sgn * r * 0.55);
+      ctx.rotate(sgn * 0.8);
+      ctx.beginPath();
+      ctx.moveTo(-r * 0.08, 0);
+      ctx.lineTo(0, -r * 0.38);
+      ctx.lineTo(r * 0.08, 0);
+      ctx.closePath(); ctx.fill();
+      ctx.restore();
+    }
+  } else if (mCrest === 6){
+    ctx.strokeStyle = 'rgba(58,42,33,0.85)';
+    ctx.lineWidth = r * 0.07;
+    ctx.lineCap = 'round';
+    for (const sgn of [-1, 1]){
+      ctx.beginPath();
+      ctx.moveTo(r * 0.52, sgn * r * 0.06);
+      ctx.quadraticCurveTo(r * 0.72, sgn * r * 0.22, r * 0.62, sgn * r * 0.42);
+      ctx.stroke();
+    }
+  }
+
+  /* ---- mutation accent ---- */
+  if (mAcc === 1){
+    ctx.fillStyle = 'rgba(255,240,200,0.9)';
+    for (let i = 0; i < 4; i++){
+      const a = t * 1.2 + i * TAU / 4 + seed;
+      const d = r * 1.25, tw = 0.5 + 0.5 * Math.sin(t * 5 + i * 2);
+      const xx = Math.cos(a) * d, yy = Math.sin(a) * d * 0.8;
+      ctx.save(); ctx.translate(xx, yy); ctx.scale(tw, tw);
+      ctx.beginPath();
+      ctx.moveTo(0, -r * 0.09); ctx.lineTo(r * 0.025, -r * 0.025); ctx.lineTo(r * 0.09, 0);
+      ctx.lineTo(r * 0.025, r * 0.025); ctx.lineTo(0, r * 0.09); ctx.lineTo(-r * 0.025, r * 0.025);
+      ctx.lineTo(-r * 0.09, 0); ctx.lineTo(-r * 0.025, -r * 0.025);
+      ctx.closePath(); ctx.fill();
+      ctx.restore();
+    }
+  } else if (mAcc === 2){
+    ctx.strokeStyle = 'rgba(255,255,255,0.5)';
+    ctx.lineWidth = r * 0.08;
+    ctx.lineCap = 'round';
+    ctx.beginPath();
+    ctx.arc(0, 0, r * 0.72, -2.4, -1.4);
+    ctx.stroke();
+  } else if (mAcc === 3){
+    ctx.fillStyle = 'rgba(220,255,250,0.14)';
+    blobPath(ctx, pts);
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(255,255,255,0.35)';
+    ctx.lineWidth = r * 0.02;
+    ctx.stroke();
+  } else if (mAcc === 4){
+    drawGlow(ctx, 0, 0, r * 2.2, `hsla(${(t * 50) % 360},90%,65%,0.75)`, 0.3);
   }
 
   /* ---- biolume gland ---- */

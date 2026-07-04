@@ -874,6 +874,12 @@ button.danger:hover{ box-shadow:0 0 16px rgba(255,122,92,.25); }
   font-size:.78rem;
   color:var(--coral);
 }
+#mutTitleHud{
+  font-size:.62rem;
+  color:var(--gold);
+  font-style:italic;
+  margin-top:.15rem;
+}
 #runClock{
   font-size:.6rem;
   color:var(--mint-dim);

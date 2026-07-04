@@ -96,6 +96,10 @@ Net.onJoined = m => {
     if (m.life) localStorage.setItem('soup_life', JSON.stringify(m.life));
     if (m.streak) localStorage.setItem('soup_streak', String(m.streak));
   } catch (e) {}
+  Game.myMutTitle = m.mutTitle || '';
+  const mt = $('mutTitleHud');
+  mt.textContent = Game.myMutTitle;
+  mt.classList.toggle('hidden', !Game.myMutTitle);
   if (!Game.tideToasted && Net.world && Net.world.tide){
     Game.tideToasted = true;
     const T = Net.world.tide;
@@ -237,6 +241,15 @@ Net.onSellok = m => {
   if (!(m.reab > 0)) Game.reabMode = false;
   refreshEditor();
   hudCache.dna = -1;
+};
+
+Net.onChristened = m => {
+  Game.myMutTitle = m.title;
+  const mt = $('mutTitleHud');
+  mt.textContent = m.title;
+  mt.classList.remove('hidden');
+  toast(`the taxonomists record the new form: ${m.title}`, true);
+  if (m.note) toast(m.note, false);
 };
 
 Net.onStatus = state => {
@@ -695,6 +708,10 @@ function sample(){
       p.hurtT = 0.3;
       if (p.id === Net.myId){ AudioSys.hurt(); Game.shake = Math.max(Game.shake, 8); }
     }
+    if (Game.hatchAt && Game.hatchAt[p.id]){
+      p.hatchUntil = Game.hatchAt[p.id];
+      if (p.hatchUntil <= Date.now()) delete Game.hatchAt[p.id];
+    }
     p.hp = newHp;
     p.maxHp = e1[8];
     p.genome.hue = e1[9];
@@ -706,7 +723,7 @@ function sample(){
       p.partsStr = e1[10];
       p.statsR = p.r;
     }
-    if (e1.length > 12){ p.name = e1[12]; p.gen = e1[13]; p.dnaTotal = e1[14]; p.lineage = e1[15] || 0; p.trail = e1[16] || 0; p.shape = e1[17] || 0; }
+    if (e1.length > 12){ p.name = e1[12]; p.gen = e1[13]; p.dnaTotal = e1[14]; p.lineage = e1[15] || 0; p.trail = e1[16] || 0; p.shape = e1[17] || 0; p.mut = e1[18] || 0; }
     live.push(p);
     if (p.id === Net.myId) Game.mePuppet = p;
   }
@@ -817,6 +834,20 @@ function processEvents(){
       case 'ink':
         world.inkCloud(ev.x, ev.y);
         break;
+      case 'hatch': {
+        /* the puppet may not exist yet — the event rides the same snapshot
+           that introduces the new cell. Stash by id; parse applies it. */
+        (Game.hatchAt = Game.hatchAt || {})[ev.id] = Date.now() + 2200;
+        if (ev.title) killFeedLine(`\u{1F95A} ${esc(ev.name)} hatches \u2014 ${esc(ev.title)}`, true);
+        if (ev.id === Net.myId && ev.title){
+          setTimeout(() => {
+            showBanner('A NEW FORM', ev.title);
+            const meP = Game.puppets.get(Net.myId);
+            if (meP) world.burst(meP.x, meP.y, 'rgba(232,220,195,0.95)', 26, 240, 1.2, 3);
+          }, 2200);
+        }
+        break;
+      }
       case 'shoreadd': {
         if (Game.shore && ev.mon){
           Game.shore.list.push(ev.mon);
@@ -1147,6 +1178,11 @@ function buildShareCard(kind, statsLine){
     g.fillStyle = '#eafff5';
     const lin = cachedLineage();
     g.fillText(`${Game.myName || 'a speck'} ${lin ? '★'.repeat(Math.min(5, lin)) : ''}`, 562, 320);
+    if (Game.myMutTitle){
+      g.font = 'italic 600 24px Fraunces, Georgia, serif';
+      g.fillStyle = '#ffd66b';
+      g.fillText(Game.myMutTitle, 562, 348);
+    }
     g.font = '20px "Fragment Mono", monospace';
     g.fillStyle = 'rgba(234,255,245,0.75)';
     const lines = Array.isArray(statsLine) ? statsLine : [statsLine || ''];

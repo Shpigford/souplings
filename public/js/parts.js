@@ -195,6 +195,21 @@ const orderFor = now => { const w = weekNumber(now); return { w, ...ORDERS[((w %
 /* quick-chat: eight preset bubbles — the soup speaks, trolls don't type */
 const EMOTES = ['blub', 'RUN', 'mine.', 'well fought', 'oops', 'gg', '\u2764\uFE0F', '\u{1F608}'];
 
+/* mutations: dynasty-permanent visual traits, one new roll per emergence.
+   pattern x crest x eyes x accent — thousands of distinct forms */
+const MUT_WORDS = {
+  p: ['', 'spotted', 'striped', 'ringed', 'freckled', 'patched', 'glow-veined'],
+  c: ['', 'antennaed', 'frilled', 'fan-tailed', 'tendriled', 'horned', 'mustachioed'],
+  e: ['', 'stalk-eyed', 'one-eyed', 'three-eyed', 'sleepy-eyed', 'star-eyed'],
+  a: ['', 'sparkling', 'sheened', 'glassy', 'auroral']
+};
+const packMut = m => (m.p || 0) | ((m.c || 0) << 3) | ((m.e || 0) << 6) | ((m.a || 0) << 9);
+const mutTitleFor = m => {
+  const w = ['p', 'c', 'e', 'a'].map(k => MUT_WORDS[k][m[k] || 0]).filter(Boolean);
+  if (!w.length) return '';
+  return 'the ' + w.map(x => x.replace(/(^|-)([a-z])/g, (q, d, ch) => d + ch.toUpperCase())).join(' ');
+};
+
 const GEN_TITLES = ['Mote', 'Wriggler', 'Darter', 'Lurker', 'Sovereign of the Shallows'];
 const ROMAN = ['I', 'II', 'III', 'IV', 'V'];
 

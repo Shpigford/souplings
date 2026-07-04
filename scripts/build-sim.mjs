@@ -15,7 +15,7 @@ out += `
 export {
   Cell, World, PARTS, PART_KEYS, GEN_TITLES, ROMAN, FOOD_TYPES, NEWBIE_R, HUE_UNLOCKS, TRAIL_NAMES, TRAIL_UNLOCKS, SHAPE_NAMES, SHAPE_UNLOCKS, DYNASTY_TITLES,
   deriveStats, randomGenome, partCost, randomSpeciesName, isValidSpeciesName, growthNeedFor,
-  capacityFor, genomeLevels, MOUTH_KEYS, ORGAN_SYSTEMS, TIDES, tideNumber, tideFor, ORDERS, weekNumber, orderFor, EMOTES,
+  capacityFor, genomeLevels, MOUTH_KEYS, ORGAN_SYSTEMS, TIDES, tideNumber, tideFor, ORDERS, weekNumber, orderFor, EMOTES, MUT_WORDS, packMut, mutTitleFor,
   rand, randInt, pick, clamp, lerp, damp, angleLerp, dist, TAU
 };
 `;
