@@ -387,8 +387,8 @@ export class Soup {
     cl.alive = false;
     cl.cell = null;
     cl.run.deaths++;
-    cl.run.dna = Math.floor(cl.run.dna * 0.7);
-    cl.run.growth *= 0.85;
+    cl.run.dna = Math.floor(cl.run.dna * 0.5);
+    cl.run.growth *= 0.6;
     this.stats.deaths++;
     const day = this.ensureDaily();
     day.deaths++;
