@@ -599,7 +599,8 @@ export class Soup {
       v: 1, lineage: cl.lineage, name: cl.name, t: Date.now(),
       lifeTime: life.time, lifeDna: life.dna, lifeKills: life.kills, lifeRuns: life.runs,
       streak: cl.streak || 0, streakDay: cl.streakDay || 0,
-      mut: cl.mut || null, mutTitle: cl.mutTitle || '', mutNote: cl.mutNote || ''
+      mut: cl.mut || null, mutTitle: cl.mutTitle || '', mutNote: cl.mutNote || '',
+      dseed: cl.dseed || 0
     });
   }
 
@@ -712,7 +713,9 @@ export class Soup {
             cl.mut = prof.mut || null;
             cl.mutTitle = prof.mutTitle || '';
             cl.mutNote = prof.mutNote || '';
+            cl.dseed = prof.dseed || 0;
           }
+          if (!cl.dseed) cl.dseed = (Math.random() * 0x7fffffff) | 0 || 1;   // the line's genome, forever
           /* daily streak: today counts; one missed day lies dormant, two breaks it */
           const today = Math.floor(Date.now() / 86400000);
           const gap = today - (cl.streakDay || 0);
@@ -1278,7 +1281,7 @@ export class Soup {
         Math.round(c.genome.hue), partsStr(c.genome.parts),
         (c.genome.carn ? 1 : 0) | (c.genome.aggro ? 2 : 0) | (c.isPlayer ? 4 : 0) | (c.frenzy ? 8 : 0)
       ];
-      if (c.client) row.push(c.client.name, c.client.run.gen, c.client.run.dnaTotal, c.client.lineage, c.client.trail || 0, c.client.shape || 0, c.client.mut ? packMut(c.client.mut) : 0);
+      if (c.client) row.push(c.client.name, c.client.run.gen, c.client.run.dnaTotal, c.client.lineage, c.client.trail || 0, c.client.shape || 0, c.client.mut ? packMut(c.client.mut) : 0, c.client.dseed || 0);
       return row;
     });
     const foodArr = world.food.map(f =>

@@ -277,6 +277,34 @@ function drawEgg(ctx, c, t){
    rendering — shared by the world and the evolution preview
    ============================================================ */
 
+/* seeded PRNG: one dynasty seed -> one creature, forever */
+function mulberry32(a){
+  return function(){
+    a |= 0; a = a + 0x6D2B79F5 | 0;
+    let z = Math.imul(a ^ a >>> 15, 1 | a);
+    z = z + Math.imul(z ^ z >>> 7, 61 | z) ^ z;
+    return ((z ^ z >>> 14) >>> 0) / 4294967296;
+  };
+}
+
+function genomeParams(seed, depth){
+  const R = mulberry32(seed);
+  const gp = { depth };
+  gp.harm = Array.from({ length: 3 }, () => ({
+    f: 2 + Math.floor(R() * 6), amp: 0.025 + R() * 0.075, ph: R() * TAU, sp: 0.6 + R() * 2
+  }));
+  gp.hue2 = R() * 360;
+  gp.freck = Array.from({ length: 5 + Math.floor(R() * 9) }, () => ({
+    a: R() * TAU, d: 0.2 + R() * 0.65, r: 0.02 + R() * 0.05, tw: R() * TAU
+  }));
+  gp.apps = Array.from({ length: Math.min(6, 1 + Math.floor(R() * 3) + depth) }, () => ({
+    a: R() * TAU, len: 0.5 + R() * 1.1, wav: 1 + R() * 4, w: 0.03 + R() * 0.05,
+    tip: Math.floor(R() * 3), th: R() * TAU
+  }));
+  gp.sat = depth >= 5 ? { d: 1.7 + R() * 0.5, r: 0.16 + R() * 0.1, sp: 0.5 + R() * 1.2, h: R() * 360 } : null;
+  return gp;
+}
+
 function drawCreature(ctx, c, t){
   if (c.hatchUntil > Date.now()){ drawEgg(ctx, c, t); return; }
   const g = c.genome, p = g.parts, s = c.stats;
@@ -297,6 +325,15 @@ function drawCreature(ctx, c, t){
 
   const r = c.r;
   const memLvl = lvl('membrane');
+  let gp = null;
+  if (c.dseed){
+    const depth = Math.min(6, c.lineage || 0);
+    if (!c._gp || c._gpKey !== c.dseed + '/' + depth){
+      c._gp = genomeParams(c.dseed, depth);
+      c._gpKey = c.dseed + '/' + depth;
+    }
+    gp = c._gp;
+  }
   const mut = c.mut || 0;
   const mPat = mut & 7, mCrest = (mut >> 3) & 7, mEyes = (mut >> 6) & 7, mAcc = (mut >> 9) & 7;
 
@@ -305,9 +342,16 @@ function drawCreature(ctx, c, t){
   const N = 16, pts = [];
   for (let i = 0; i < N; i++){
     const a = i / N * TAU;
-    let rr = r * (1
-      + 0.05 * Math.sin(3 * a + t * 2.1 + seed)
-      + 0.035 * Math.sin(5 * a - t * 1.6 + seed * 2));
+    let rr;
+    if (gp){
+      rr = 1;
+      for (const hm of gp.harm) rr += hm.amp * Math.sin(hm.f * a + t * hm.sp + hm.ph + seed);
+      rr *= r;
+    } else {
+      rr = r * (1
+        + 0.05 * Math.sin(3 * a + t * 2.1 + seed)
+        + 0.035 * Math.sin(5 * a - t * 1.6 + seed * 2));
+    }
     if (shape === 2) rr = r * (1
       + 0.13 * Math.sin(7 * a + t * 1.4 + seed)
       + 0.03 * Math.sin(3 * a + t * 2.1 + seed));
@@ -388,7 +432,14 @@ function drawCreature(ctx, c, t){
 
   /* ---- body ---- */
   blobPath(ctx, pts);
-  ctx.fillStyle = `hsla(${h},65%,55%,0.16)`;
+  if (gp){
+    const grad = ctx.createRadialGradient(-r * 0.2, -r * 0.2, r * 0.1, 0, 0, r * 1.1);
+    grad.addColorStop(0, `hsla(${gp.hue2},70%,62%,0.22)`);
+    grad.addColorStop(1, `hsla(${h},65%,55%,0.15)`);
+    ctx.fillStyle = grad;
+  } else {
+    ctx.fillStyle = `hsla(${h},65%,55%,0.16)`;
+  }
   ctx.fill();
   ctx.strokeStyle = `hsla(${h},85%,72%,0.95)`;
   ctx.lineWidth = r * 0.055 * (1 + 0.45 * memLvl);
@@ -454,6 +505,58 @@ function drawCreature(ctx, c, t){
       }
     }
     ctx.restore();
+  }
+
+  /* ---- the dynasty's own constellation & limbs ---- */
+  if (gp){
+    ctx.fillStyle = `hsla(${gp.hue2},95%,78%,0.6)`;
+    for (const f2 of gp.freck){
+      const tw = 0.55 + 0.45 * Math.sin(t * 2.4 + f2.tw);
+      ctx.beginPath();
+      ctx.arc(Math.cos(f2.a) * r * f2.d, Math.sin(f2.a) * r * f2.d, r * f2.r * tw, 0, TAU);
+      ctx.fill();
+    }
+    ctx.lineCap = 'round';
+    for (const ap of gp.apps){
+      ctx.strokeStyle = `hsla(${gp.hue2},75%,70%,0.75)`;
+      ctx.lineWidth = Math.max(1, r * ap.w);
+      const bx = Math.cos(ap.a) * r * 0.95, by = Math.sin(ap.a) * r * 0.95;
+      const wig = Math.sin(t * ap.wav + ap.th) * 0.5;
+      const tx2 = Math.cos(ap.a + wig * 0.4) * r * (0.95 + ap.len);
+      const ty2 = Math.sin(ap.a + wig * 0.4) * r * (0.95 + ap.len);
+      ctx.beginPath();
+      ctx.moveTo(bx, by);
+      ctx.quadraticCurveTo(
+        Math.cos(ap.a - wig * 0.3) * r * (0.95 + ap.len * 0.5),
+        Math.sin(ap.a - wig * 0.3) * r * (0.95 + ap.len * 0.5),
+        tx2, ty2);
+      ctx.stroke();
+      if (ap.tip === 1){
+        ctx.fillStyle = `hsla(${gp.hue2},100%,80%,0.9)`;
+        ctx.beginPath(); ctx.arc(tx2, ty2, Math.max(1.5, r * 0.06), 0, TAU); ctx.fill();
+      } else if (ap.tip === 2){
+        ctx.strokeStyle = `hsla(${gp.hue2},90%,80%,0.8)`;
+        ctx.beginPath();
+        ctx.moveTo(tx2, ty2);
+        ctx.lineTo(tx2 + Math.cos(ap.a + 0.5) * r * 0.14, ty2 + Math.sin(ap.a + 0.5) * r * 0.14);
+        ctx.moveTo(tx2, ty2);
+        ctx.lineTo(tx2 + Math.cos(ap.a - 0.5) * r * 0.14, ty2 + Math.sin(ap.a - 0.5) * r * 0.14);
+        ctx.stroke();
+      }
+    }
+    if (gp.sat){
+      const sa = t * gp.sat.sp + seed;
+      const sx = Math.cos(sa) * r * gp.sat.d, sy = Math.sin(sa) * r * gp.sat.d * 0.8;
+      drawGlow(ctx, sx, sy, r * gp.sat.r * 3, `hsla(${gp.sat.h},95%,70%,0.8)`, 0.5);
+      ctx.fillStyle = `hsla(${gp.sat.h},80%,68%,0.85)`;
+      ctx.beginPath();
+      ctx.arc(sx, sy, r * gp.sat.r, 0, TAU);
+      ctx.fill();
+      ctx.fillStyle = '#0a1c26';
+      ctx.beginPath();
+      ctx.arc(sx + r * gp.sat.r * 0.25, sy, r * gp.sat.r * 0.3, 0, TAU);
+      ctx.fill();
+    }
   }
 
   /* ---- nucleus & organelles ---- */

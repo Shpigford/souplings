@@ -723,7 +723,7 @@ function sample(){
       p.partsStr = e1[10];
       p.statsR = p.r;
     }
-    if (e1.length > 12){ p.name = e1[12]; p.gen = e1[13]; p.dnaTotal = e1[14]; p.lineage = e1[15] || 0; p.trail = e1[16] || 0; p.shape = e1[17] || 0; p.mut = e1[18] || 0; }
+    if (e1.length > 12){ p.name = e1[12]; p.gen = e1[13]; p.dnaTotal = e1[14]; p.lineage = e1[15] || 0; p.trail = e1[16] || 0; p.shape = e1[17] || 0; p.mut = e1[18] || 0; p.dseed = e1[19] || 0; }
     live.push(p);
     if (p.id === Net.myId) Game.mePuppet = p;
   }
