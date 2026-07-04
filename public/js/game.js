@@ -99,6 +99,18 @@ Net.onJoined = m => {
   hudCache.dna = -1; hudCache.gen = -1; hudCache.hp = -1; hudCache.gr = -1;
 };
 
+function statRow(cells){
+  return `<div class="statRow">` + cells.map(([v, l, cls]) =>
+    `<div class="statCell${cls ? ' ' + cls : ''}"><b>${v}</b><i>${l}</i></div>`).join('') + `</div>`;
+}
+
+function dynStrip(stars, facts){
+  return `<div class="dynStrip"><div class="dynHead">` +
+    (stars ? `<span class="dynStars">${stars}</span>` : '') +
+    `<span class="dynT">your dynasty</span></div>` +
+    `<div class="dynRow">` + facts.map(([v, l]) => `<span><b>${v}</b> ${l}</span>`).join('') + `</div></div>`;
+}
+
 Net.onDead = m => {
   if (Game.state === 'editor') closeEditor();
   Game.state = 'dead';
@@ -123,17 +135,22 @@ Net.onDead = m => {
   saveBests(b);
   const L = m.life;
   const lin = cachedLineage();
-  const dynastyLine = L
-    ? `<span class="gold">your dynasty — ${lin ? '★'.repeat(Math.min(5, lin)) + (lin > 5 ? '×' + lin : '') + ' · ' : ''}` +
-      `${L.runs} speck${L.runs === 1 ? '' : 's'} lived · ${fmtLong(L.time)} in the soup · ` +
-      `${L.dna} DNA · ${L.kills} kills all-time</span><br>`
-    : '';
+  const stars = lin ? (lin > 5 ? `★×${lin}` : '★'.repeat(lin)) : '';
   ui.deathStats.innerHTML =
-    `this speck — ${fmtTime(s.survived)} · generation ${ROMAN[s.gen - 1]} · ` +
-    `${s.dnaTotal} DNA · ${s.kills} kills<br>` +
-    dynastyLine +
-    `<span class="dim">your bests — ${fmtTime(b.survived || 0)} · gen ${ROMAN[(b.gen || 1) - 1]} · ${b.kills || 0} kills</span>` +
-    (newBest ? ' <span class="gold">new best</span>' : '');
+    statRow([
+      [fmtTime(s.survived), 'survived'],
+      [ROMAN[s.gen - 1], 'generation'],
+      [s.dnaTotal, 'dna', 'gold'],
+      [s.kills, 'kills']
+    ]) +
+    (L ? dynStrip(stars, [
+      [L.runs, `speck${L.runs === 1 ? '' : 's'} lived`],
+      [fmtLong(L.time), 'in the soup'],
+      [L.dna, 'DNA'],
+      [L.kills, 'kills']
+    ]) : '') +
+    `<span class="dim mono">your bests — ${fmtTime(b.survived || 0)} · gen ${ROMAN[(b.gen || 1) - 1]} · ${b.kills || 0} kills</span>` +
+    (newBest ? '<span class="bestBadge">new best</span>' : '');
   ui.death.classList.remove('hidden');
   ui.continueBtn.focus();
 };
@@ -157,12 +174,21 @@ Net.onAshore = m => {
   if (s.kills > (b.kills || 0)) b.kills = s.kills;
   saveBests(b);
   const L2 = m.life;
+  const winStars = (s.lineage || 1) > 5 ? `★×${s.lineage}` : stars;
   ui.winStats.innerHTML =
-    `${esc(s.name)} · dynasty <span class="gold">${stars}${(s.lineage || 1) > 5 ? '×' + s.lineage : ''}</span><br>` +
-    `this run — ${fmtTime(s.survived)} · ${s.dnaTotal} DNA · ${s.kills} kills · ${s.deaths} setbacks<br>` +
-    (L2 ? `<span class="gold">all-time — ${L2.runs} specks · ${fmtTime(L2.time)} in the soup · ${L2.kills} kills</span><br>` : '') +
-    `<span class="dim">personal fastest — ${fmtTime(b.fastest)}</span>` +
-    (fastest ? ' <span class="gold">new best</span>' : '');
+    statRow([
+      [fmtTime(s.survived), 'this run'],
+      [s.dnaTotal, 'dna', 'gold'],
+      [s.kills, 'kills'],
+      [s.deaths, 'setbacks']
+    ]) +
+    (L2 ? dynStrip(winStars, [
+      [L2.runs, `speck${L2.runs === 1 ? '' : 's'} lived`],
+      [fmtLong(L2.time), 'in the soup'],
+      [L2.kills, 'kills']
+    ]) : '') +
+    `<span class="dim mono">personal fastest — ${fmtTime(b.fastest)}</span>` +
+    (fastest ? '<span class="bestBadge">new best</span>' : '');
   ui.winRestartBtn.innerHTML = `Continue the dynasty <span>${stars}</span>`;
   ui.win.classList.remove('hidden');
   ui.hud.classList.add('hidden');
