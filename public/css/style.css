@@ -782,8 +782,17 @@ button:disabled:hover{ transform:none; box-shadow:none; }
 }
 
 .endBtns{
-  display:flex; gap:.9rem; justify-content:center;
+  display:block; text-align:center;
+  max-width:36rem; margin:0 auto;
   animation:riseIn .7s .55s ease both;
+}
+.endBtns > button:first-child{ display:block; margin:0 auto .8rem; }
+.endBtns .ghost{
+  display:inline-block;
+  margin:.25rem .3rem;
+  font-size:.66rem; letter-spacing:.06em;
+  padding:.7em 1.2em;
+  white-space:nowrap;
 }
 
 .deathBy{
@@ -846,6 +855,22 @@ button:disabled:hover{ transform:none; box-shadow:none; }
 .resetRow{ margin-top:1.4rem; border-top:1px solid rgba(125,255,212,.12); padding-top:1rem; }
 button.danger{ color:var(--coral); border-color:rgba(255,122,92,.35); font-size:.7rem; }
 button.danger:hover{ box-shadow:0 0 16px rgba(255,122,92,.25); }
+
+/* clip chip: appears after your kills */
+#clipChip{
+  position:fixed;
+  right:1rem; bottom:4.2rem;
+  z-index:2;
+  font-size:.62rem;
+  letter-spacing:.15em;
+  padding:.55em 1.1em;
+  color:var(--gold);
+  background:rgba(4,18,29,.75);
+  border:1px solid rgba(255,199,90,.45);
+  border-radius:999px;
+  animation:riseIn .3s ease both;
+}
+#clipChip:hover{ box-shadow:0 0 14px rgba(255,199,90,.3); }
 
 /* ============ the current shifts (reconnect veil) ============ */
 
@@ -919,6 +944,37 @@ button.danger:hover{ box-shadow:0 0 16px rgba(255,122,92,.25); }
   color:var(--mint-dim);
   margin-bottom:.55rem;
 }
+#chronicle .orderBox{
+  margin-bottom:.7rem;
+  padding:.5rem .7rem .6rem;
+  border:1px solid rgba(255,199,90,.25);
+  border-radius:10px 6px 10px 6px;
+  background:rgba(255,199,90,.05);
+}
+#chronicle .orderHead{
+  display:flex; justify-content:space-between;
+  font-size:.56rem; letter-spacing:.25em; text-transform:uppercase;
+  color:rgba(255,199,90,.75);
+  margin-bottom:.3rem;
+}
+#chronicle .orderText{ color:var(--gold); margin-bottom:.4rem; }
+#chronicle .orderBar{
+  height:6px; border-radius:99px;
+  background:rgba(255,199,90,.12);
+  overflow:hidden;
+}
+#chronicle .orderBar i{
+  display:block; height:100%;
+  background:var(--gold);
+  border-radius:99px;
+  box-shadow:0 0 8px rgba(255,199,90,.6);
+  transition:width .6s ease;
+}
+#chronicle .tideLine{
+  color:var(--mint);
+  margin-bottom:.55rem;
+}
+#chronicle .tideLine b{ color:var(--gold); font-weight:400; }
 #chronicle .counts{ color:rgba(234,255,245,.55); margin-bottom:.55rem; }
 #chronicle .recGrid{
   display:grid;

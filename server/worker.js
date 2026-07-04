@@ -6,11 +6,12 @@
 
 import {
   Cell, World, PARTS, PART_KEYS, FOOD_TYPES, NEWBIE_R, HUE_UNLOCKS, TRAIL_UNLOCKS, SHAPE_UNLOCKS,
-  capacityFor, genomeLevels, MOUTH_KEYS,
+  capacityFor, genomeLevels, MOUTH_KEYS, tideFor, weekNumber, orderFor,
   randomGenome, partCost, randomSpeciesName, isValidSpeciesName, growthNeedFor,
   rand, randInt, pick, clamp, dist, TAU
 } from './sim.gen.mjs';
 
+const TIDE_EPOCH_MS = Date.UTC(2026, 0, 1);
 const WORLD_R = 3000;
 const FOOD_TARGET = 480;
 const PLAYER_HUES = [158, 205, 262, 95, 45, 305, 180, 335, 20, 120];
@@ -76,6 +77,8 @@ export class Soup {
       if (saved) this.stats = { ...this.stats, ...saved };
       const day = await state.storage.get('daily');
       if (day) this.daily = day;
+      const ord = await state.storage.get('order');
+      if (ord) this.order = ord;
     });
     this.seedWorld();
   }
@@ -96,8 +99,38 @@ export class Soup {
 
   saveDaily(){ this.state.storage.put('daily', this.daily); }
 
+  /* the week's communal goal — progress persists, resets weekly */
+  ensureOrder(){
+    const w = weekNumber(Date.now());
+    if (!this.order || this.order.w !== w) this.order = { w, n: 0, done: false };
+    return this.order;
+  }
+
+  advanceOrder(kind, cl){
+    const O = orderFor(Date.now());
+    if (O.key !== kind) return;
+    const st = this.ensureOrder();
+    if (st.done) return;
+    st.n++;
+    if (cl && cl.run){
+      cl.run.dna += 15;
+      cl.run.dnaTotal += 15;
+      this.send(cl, { t: 'toast', msg: `tide order advanced \u2014 +15 DNA (${st.n}/${O.target})` });
+    }
+    if (st.n >= O.target){
+      st.done = true;
+      this.events.push({ e: 'orderdone', label: O.label });
+    }
+    this.state.storage.put('order', st);
+  }
+
   worldStats(){
-    return { ...this.stats, online: this.alivePlayers().length, daily: this.ensureDaily() };
+    const O = orderFor(Date.now()), ost = this.ensureOrder();
+    const daysLeft = Math.max(1, Math.ceil((TIDE_EPOCH_MS + O.w * 7 * 86400000 - Date.now()) / 86400000));
+    return {
+      ...this.stats, online: this.alivePlayers().length, daily: this.ensureDaily(), tide: tideFor(Date.now()),
+      order: { label: O.label, unit: O.unit, target: O.target, n: ost.n, done: ost.done, daysLeft }
+    };
   }
 
   /* -------------------- connections -------------------- */
@@ -217,6 +250,7 @@ export class Soup {
       : band < 0.65 ? rand(18, 44)
       : rand(30, 72);
     const genome = randomGenome(Math.min(6, 1 + Math.floor(r / 16)));
+    if (tideFor(Date.now()).bold && genome.carn) genome.aggro = true;
     const c = new Cell({ x, y, r, genome });
     c.id = this.nextId++;
     this.world.cells.push(c);
@@ -269,14 +303,19 @@ export class Soup {
         this.events.push({ e: 'frenzy', id: cl.id });
       }
       const fMul = cl.frenzyUntil > now ? 2 : 1;
-      run.growth += f.mass * (herb ? st.algaeMul : st.meatMul) * (st.growthMul || 1);
+      const T = tideFor(now);
+      const tMul = ((f.type === 'meat' && T.meat) || (herb && T.algae) || 1) * (T.growth || 1);
+      run.growth += f.mass * (herb ? st.algaeMul : st.meatMul) * (st.growthMul || 1) * tMul;
       const dnaGain = Math.round(f.dna * (st.dnaMul || 1) * fMul);
       run.dna += dnaGain;
       run.dnaTotal += dnaGain;
       run.eaten++;
       cell.r = run.baseR * (1 + 0.16 * clamp(run.growth / run.need, 0, 1));
       cell.recalc();
-      if (f.type === 'gold') this.events.push({ e: 'goldgone', name: cl.name, id: cl.id });
+      if (f.type === 'gold'){
+        this.events.push({ e: 'goldgone', name: cl.name, id: cl.id });
+        this.advanceOrder('gold', cl);
+      }
     }
     this.events.push({ e: 'eat', x: Math.round(f.x), y: Math.round(f.y), ft: f.type, who: cl ? cl.id : 0 });
   }
@@ -345,11 +384,12 @@ export class Soup {
     });
     /* player deaths are gold rushes — the bigger the life, the bigger the feast */
     const isPlayerDeath = !!c.client;
-    const meatN = isPlayerDeath ? 3 + c.client.run.gen * 2 : 2 + Math.floor(c.r / 22);
+    const wakeMul = tideFor(Date.now()).pinata || 1;
+    const meatN = (isPlayerDeath ? 3 + c.client.run.gen * 2 : 2 + Math.floor(c.r / 22)) * wakeMul;
     this.world.scatterFood('meat', c.x, c.y, meatN, c.r * (isPlayerDeath ? 1.6 : 1.3));
-    const orbs = isPlayerDeath
+    const orbs = (isPlayerDeath
       ? 2 + c.client.run.gen + Math.min(3, c.client.lineage)
-      : randInt(1, 2 + Math.floor(c.r / 30));
+      : randInt(1, 2 + Math.floor(c.r / 30))) * wakeMul;
     for (let i = 0; i < orbs; i++){
       const f = this.world.spawnFood('dna', c.x + rand(-c.r, c.r), c.y + rand(-c.r, c.r));
       f.vx = rand(-60, 60); f.vy = rand(-60, 60);
@@ -360,7 +400,7 @@ export class Soup {
       /* the kill itself feeds you: growth, a quarter heal, and blood
          frenzy — hunting is a progression path, not a side quest */
       if (killer.alive && kcl.run){
-        const g = Math.round(c.r * (c.client ? 1.6 : 0.9));
+        const g = Math.round(c.r * (c.client ? 1.6 : 0.9) * (tideFor(Date.now()).killG || 1));
         kcl.run.growth += g;
         killer.hp = Math.min(killer.stats.maxHp, killer.hp + killer.stats.maxHp * 0.25);
         kcl.frenzyUntil = Math.max(kcl.frenzyUntil || 0, Date.now() + 6000);
@@ -388,6 +428,11 @@ export class Soup {
       }
     }
     if (c.client){
+      c.client.lastDeath = {
+        x: Math.round(c.x), y: Math.round(c.y),
+        killerId: killer && killer.client ? killer.client.id : 0,
+        killerName: killer && killer.client ? killer.client.name : ''
+      };
       let by;
       if (killer && killer.client) by = killer.client.name;
       else if (killer) by = killer.genome.carn ? 'a wild predator' : 'a territorial grazer';
@@ -464,7 +509,7 @@ export class Soup {
     cl.ashore = false;
     cl.runBanked = false;
     this.spawnPlayerCell(cl, near);
-    this.send(cl, { t: 'joined', name: cl.name, lineage: cl.lineage, life: this.lifeView(cl) });
+    this.send(cl, { t: 'joined', name: cl.name, lineage: cl.lineage, life: this.lifeView(cl), streak: cl.streak || 0 });
   }
 
   /* -------------------- messages -------------------- */
@@ -510,7 +555,8 @@ export class Soup {
     const life = cl.life || { time: 0, dna: 0, kills: 0, runs: 0 };
     this.state.storage.put('prof:' + cl.token, {
       v: 1, lineage: cl.lineage, name: cl.name, t: Date.now(),
-      lifeTime: life.time, lifeDna: life.dna, lifeKills: life.kills, lifeRuns: life.runs
+      lifeTime: life.time, lifeDna: life.dna, lifeKills: life.kills, lifeRuns: life.runs,
+      streak: cl.streak || 0, streakDay: cl.streakDay || 0
     });
   }
 
@@ -561,7 +607,9 @@ export class Soup {
           cl.inviteCode = Math.random().toString(36).slice(2, 8);
           this.invites.set(cl.inviteCode, cl);
         }
-        this.send(cl, { t: 'invite', code: cl.inviteCode });
+        /* an avenge call remembers where you fell and who did it */
+        cl.avenge = m.avenge && cl.lastDeath ? { ...cl.lastDeath } : null;
+        this.send(cl, { t: 'invite', code: cl.inviteCode, from: cl.name });
         break;
       }
       case 'ident': {
@@ -607,7 +655,15 @@ export class Soup {
               time: prof.lifeTime || 0, dna: prof.lifeDna || 0,
               kills: prof.lifeKills || 0, runs: prof.lifeRuns || 0
             };
+            cl.streak = prof.streak || 0;
+            cl.streakDay = prof.streakDay || 0;
           }
+          /* daily streak: today counts; one missed day lies dormant, two breaks it */
+          const today = Math.floor(Date.now() / 86400000);
+          const gap = today - (cl.streakDay || 0);
+          if (gap > 0) cl.streak = gap <= 2 ? (cl.streak || 0) + 1 : 1;
+          if (!cl.streak) cl.streak = 1;
+          cl.streakDay = today;
         }
         /* names: generator grammar passes free; custom names face the taxonomists (Haiku) */
         const raw = String(m.name || '').trim();
@@ -656,22 +712,40 @@ export class Soup {
           }
         }
         if (resumed){
-          this.send(cl, { t: 'joined', name: cl.name, lineage: cl.lineage, life: this.lifeView(cl), resumed: 1 });
+          this.send(cl, { t: 'joined', name: cl.name, lineage: cl.lineage, life: this.lifeView(cl), streak: cl.streak, resumed: 1 });
           this.saveProfile(cl);
           this.events.push({ e: 'join', name });
           console.log(`[resume] ${name} (#${cl.id}) — gen ${cl.run.gen}`);
           break;
         }
-        /* buddy links: surface beside the friend who invited you */
-        let near = null;
+        /* buddy links: surface beside the friend — or at the site of their death */
+        let near = null, host = null;
         if (typeof m.buddy === 'string' && this.invites.has(m.buddy)){
-          const host = this.invites.get(m.buddy);
-          if (host !== cl && host.alive && host.cell) near = host;
+          host = this.invites.get(m.buddy);
+          if (host === cl) host = null;
+          if (host && host.alive && host.cell) near = host;
         }
         this.freshRun(cl, name, near);
-        if (near){
-          this.send(cl, { t: 'toast', msg: `you surface beside ${near.name}` });
-          this.send(near, { t: 'toast', msg: `${cl.name} surfaces beside you` });
+        const site = !near && host && host.avenge;
+        if (site && cl.cell){
+          cl.cell.x = site.x + rand(-120, 120);
+          cl.cell.y = site.y + rand(-120, 120);
+          cl.input = { tx: cl.cell.x, ty: cl.cell.y, th: 0 };
+          if (site.killerId){
+            cl.nemesisId = site.killerId;
+            cl.nemesisName = site.killerName;
+            this.send(cl, { t: 'toast', msg: `avenge ${host.name} \u2014 ${site.killerName} still swims these waters` });
+          } else {
+            this.send(cl, { t: 'toast', msg: `you surface where ${host.name} fell` });
+          }
+        }
+        if (host){
+          /* the blood pact: both sides drink */
+          cl.run.dna += 30; cl.run.dnaTotal += 30;
+          if (host.run){ host.run.dna += 30; host.run.dnaTotal += 30; }
+          this.send(host, { t: 'toast', msg: `${cl.name} answers your call \u2014 +30 DNA to you both` });
+          if (near) this.send(cl, { t: 'toast', msg: `you surface beside ${near.name} \u2014 +30 DNA blood pact` });
+          else if (!site) this.send(cl, { t: 'toast', msg: `+30 DNA blood pact` });
         }
         this.saveProfile(cl);
         this.events.push({ e: 'join', name });
@@ -743,7 +817,7 @@ export class Soup {
       case 'respawn': {
         if (cl.alive) break;
         if (cl.ashore || !cl.run) this.freshRun(cl);
-        else { this.spawnPlayerCell(cl); this.send(cl, { t: 'joined', name: cl.name, lineage: cl.lineage, life: this.lifeView(cl) }); }
+        else { this.spawnPlayerCell(cl); this.send(cl, { t: 'joined', name: cl.name, lineage: cl.lineage, life: this.lifeView(cl), streak: cl.streak || 0 }); }
         break;
       }
       case 'debug': {
@@ -952,6 +1026,7 @@ export class Soup {
         cl.cell = null;
         cl.alive = false;
         cl.ashore = true;
+        this.advanceOrder('ashore', cl);
         if (cl.token) this.state.storage.delete('run:' + cl.token);
         const rs = this.runStats(cl);
         this.stats.ashore++;
@@ -988,7 +1063,10 @@ export class Soup {
         if (run.gen === 4){
           this.send(cl, { t: 'hint', key: 'marked', msg: 'the deep has your scent now — hunters see you from afar' });
         }
-        if (run.gen === 5) this.events.push({ e: 'apex', id: cl.id, name: cl.name });
+        if (run.gen === 5){
+          this.events.push({ e: 'apex', id: cl.id, name: cl.name });
+          this.advanceOrder('sovereign', cl);
+        }
       }
     }
 
@@ -996,7 +1074,7 @@ export class Soup {
 
     /* the golden mote: rare, radiant, cowardly, announced to everyone */
     if (players.length > 0){
-      this.goldT -= dt;
+      this.goldT -= dt * (tideFor(Date.now()).gold ? 2 : 1);
       if (this.goldT <= 0){
         this.goldT = 90 + Math.random() * 60;
         this.spawnGoldenMote();
@@ -1024,7 +1102,7 @@ export class Soup {
     /* DNA vaults: crusted hoards that must be cracked open. Tier sets
        toughness and payout; max damage opens the biggest in ~5 seconds. */
     if (players.length > 0){
-      this.vaultT -= dt;
+      this.vaultT -= dt * (tideFor(Date.now()).gold ? 2 : 1);
       if (this.vaultT <= 0 && this.vaults.length < 1){
         this.vaultT = 150 + Math.random() * 90;
         this.spawnVault();
@@ -1052,6 +1130,7 @@ export class Soup {
           cl2.run.dna += cut;
           cl2.run.dnaTotal += cut;
           this.events.push({ e: 'vbreak', x: Math.round(v.x), y: Math.round(v.y), tier: v.tier, name: cl2.name, id: cl2.id, cut });
+          this.advanceOrder('vault', cl2);
         }
       }
     }
@@ -1059,7 +1138,7 @@ export class Soup {
 
     /* wildlife backfills the soup when humans are scarce; as real players
        arrive, the wild thins out and the humans ARE the ecosystem */
-    const targetFauna = Math.max(10, 22 - 5 * Math.max(0, players.length - 1));
+    const targetFauna = Math.max(10, 22 - 5 * Math.max(0, players.length - 1)) + (tideFor(Date.now()).crowd ? 6 : 0);
     if (world.cells.filter(c => !c.isPlayer).length < targetFauna){
       for (let tries = 0; tries < 6; tries++){
         const a = rand(0, TAU), d = Math.sqrt(Math.random()) * WORLD_R * 0.92;

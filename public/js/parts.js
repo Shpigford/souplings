@@ -168,6 +168,30 @@ const ORGAN_SYSTEMS = [
   ['metabolism', ['jaw', 'filter', 'gland', 'osmo', 'helix']]
 ];
 
+/* the daily tide: one world condition per UTC day, same for everyone.
+   Strict rotation — tomorrow is knowable, and that's the point */
+const TIDES = [
+  { name: 'green bloom', desc: 'algae runs rich — grazers feast', algae: 1.5 },
+  { name: 'red tide', desc: 'meat runs rich and the wild runs bold', meat: 1.5, bold: 1 },
+  { name: 'gold rush', desc: 'golden motes and vaults surface twice as often', gold: 1 },
+  { name: 'the hungry dark', desc: 'the deep crowds — kills feed you double', crowd: 1, killG: 2 },
+  { name: 'still water', desc: 'a gentle day — everything grows a little faster', growth: 1.25 },
+  { name: 'the great wake', desc: 'every death feeds the water — the fallen scatter twice the feast', pinata: 2 }
+];
+const TIDE_EPOCH = Date.UTC(2026, 0, 1);
+const tideNumber = now => Math.floor((now - TIDE_EPOCH) / 86400000) + 1;
+const tideFor = now => { const n = tideNumber(now); return { n, ...TIDES[((n % TIDES.length) + TIDES.length) % TIDES.length] }; };
+
+/* tide orders: one community goal per week, everyone pulls together */
+const ORDERS = [
+  { key: 'ashore', label: 'carry the line ashore', unit: 'emergences', target: 150 },
+  { key: 'sovereign', label: 'raise the sovereigns', unit: 'crowns', target: 200 },
+  { key: 'vault', label: 'crack the deep vaults', unit: 'vaults', target: 100 },
+  { key: 'gold', label: 'claim the golden motes', unit: 'motes', target: 200 }
+];
+const weekNumber = now => Math.floor((now - TIDE_EPOCH) / (7 * 86400000)) + 1;
+const orderFor = now => { const w = weekNumber(now); return { w, ...ORDERS[((w % ORDERS.length) + ORDERS.length) % ORDERS.length] }; };
+
 const GEN_TITLES = ['Mote', 'Wriggler', 'Darter', 'Lurker', 'Sovereign of the Shallows'];
 const ROMAN = ['I', 'II', 'III', 'IV', 'V'];
 

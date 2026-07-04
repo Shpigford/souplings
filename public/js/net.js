@@ -145,7 +145,7 @@ const Net = {
     } catch (e) {}
     this.send({ t: 'join', name, token: this.token(), hue, trail, shape, buddy: buddy || undefined });
   },
-  invite(){ this.send({ t: 'invite' }); },
+  invite(avenge){ this.send({ t: 'invite', avenge: !!avenge }); },
   ident(name, hue, trail, shape){ this.send({ t: 'ident', name, hue, trail, shape }); },
   input(tx, ty, th, dash){
     this.send({ t: 'input', tx: Math.round(tx), ty: Math.round(ty), th: +th.toFixed(2), dash: !!dash });

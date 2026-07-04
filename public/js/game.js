@@ -81,6 +81,7 @@ Net.onWelcome = () => {
 Net.onJoined = m => {
   Game.myName = m.name;
   Game.spectateId = 0;
+  Clips.start();
   if (Game.sweptHope){
     Game.sweptHope = false;
     Game.camSnap = true;   // don't slew across the world to the new spawn
@@ -92,7 +93,13 @@ Net.onJoined = m => {
     localStorage.setItem('soup_name', m.name);
     localStorage.setItem('soup_lineage', String(m.lineage || 0));
     if (m.life) localStorage.setItem('soup_life', JSON.stringify(m.life));
+    if (m.streak) localStorage.setItem('soup_streak', String(m.streak));
   } catch (e) {}
+  if (!Game.tideToasted && Net.world && Net.world.tide){
+    Game.tideToasted = true;
+    const T = Net.world.tide;
+    toast(`\u{1F30A} tide ${T.n} \u00b7 ${T.name} \u2014 ${T.desc}`, false);
+  }
   buildHueRow();
   ui.specName.textContent = m.name;
   ui.previewCaption.textContent = m.name;
@@ -144,6 +151,7 @@ Net.onDead = m => {
   const L = m.life;
   const lin = cachedLineage();
   const stars = lin ? (lin > 5 ? `★×${lin}` : '★'.repeat(lin)) : '';
+  Game.lastArtifact = { gen: s.gen, survived: s.survived, kills: s.kills, ashore: false };
   ui.deathStats.innerHTML =
     statRow([
       [fmtTime(s.survived), 'survived'],
@@ -184,6 +192,7 @@ Net.onAshore = m => {
   saveBests(b);
   const L2 = m.life;
   const winStars = (s.lineage || 1) > 5 ? `★×${s.lineage}` : stars;
+  Game.lastArtifact = { gen: 5, survived: s.survived, kills: s.kills, ashore: true };
   ui.winStats.innerHTML =
     statRow([
       [fmtTime(s.survived), 'this run'],
@@ -273,15 +282,18 @@ function updateTitleDynasty(){
   const life = cachedLife();
   if (!lin && !(life && life.runs)){
     el.classList.add('hidden');
-    ui.beginBtn.textContent = 'Begin as a speck';
+    ui.beginBtn.textContent = Game.calledBy ? 'Answer the call' : 'Begin as a speck';
     return;
   }
   const stars = lin ? (lin > 5 ? `★×${lin}` : '★'.repeat(lin)) : '';
   let line = stars ? `${stars} dynasty` : 'a returning drifter';
   if (life && life.runs) line += ` · ${life.runs} speck${life.runs === 1 ? '' : 's'} lived · ${fmtLong(life.time || 0)} in the soup`;
+  let stk = 0;
+  try { stk = +localStorage.getItem('soup_streak') || 0; } catch (e) {}
+  if (stk > 1) line += ` · ${stk}-day streak`;
   el.textContent = line;
   el.classList.remove('hidden');
-  ui.beginBtn.textContent = lin ? 'Rejoin the soup' : 'Begin as a speck';
+  ui.beginBtn.textContent = Game.calledBy ? 'Answer the call' : lin ? 'Rejoin the soup' : 'Begin as a speck';
 }
 
 function updateConnStatus(){
@@ -320,6 +332,15 @@ function updateChronicle(){
     return;
   }
   let html = `<div class="chronTitle">the chronicle</div>`;
+  if (w.order){
+    const o = w.order;
+    const pct = Math.min(100, Math.round(o.n / o.target * 100));
+    html += `<div class="orderBox">` +
+      `<div class="orderHead"><span>tide order</span><span>${o.done ? 'complete' : `ends in ${o.daysLeft} day${o.daysLeft === 1 ? '' : 's'}`}</span></div>` +
+      `<div class="orderText">${o.done ? `the soup prevailed \u2014 ${o.label}` : `${o.label} \u00b7 ${o.n}/${o.target} ${o.unit}`}</div>` +
+      `<div class="orderBar"><i style="width:${pct}%"></i></div></div>`;
+  }
+  if (w.tide) html += `<div class="tideLine">\u{1F30A} tide ${w.tide.n} \u00b7 <b>${w.tide.name}</b> \u2014 ${w.tide.desc}</div>`;
   html += `<div class="counts">${w.online} adrift · ${w.joins} lived · ${w.ashore} ashore · ${w.deaths} reabsorbed${w.pvp ? ` · ${w.pvp} eaten` : ''}</div>`;
   const recs = [];
   if (w.fastest) recs.push(['fastest', `${fmtTime(w.fastest.s)} · ${esc(w.fastest.name)}`]);
@@ -741,6 +762,7 @@ function processEvents(){
         if (ev.name && ev.byName) killFeedLine(`${ev.byName} devoured ${ev.name}`);
         if (ev.by === Net.myId && ev.name){
           showBanner('DEVOURED', ev.name);
+          showClipChip();
           AudioSys.devour();
           Game.punch = 0.88;
         }
@@ -782,6 +804,11 @@ function processEvents(){
       case 'ink':
         world.inkCloud(ev.x, ev.y);
         break;
+      case 'orderdone': {
+        showBanner('THE SOUP PREVAILS', ev.label);
+        AudioSys.win && AudioSys.win();
+        break;
+      }
       case 'apex': {
         if (ev.id !== Net.myId){
           toast(`${ev.name} nears the shore — a Sovereign swims among you`, false);
@@ -1076,15 +1103,16 @@ function buildShareCard(kind, statsLine){
     drawCreature(g, mock, 2.3);
     g.textAlign = 'left';
     g.font = 'italic 900 84px Fraunces, Georgia, serif';
-    g.fillStyle = kind === 'win' ? '#ffd66b' : '#ff7a5c';
-    g.fillText(kind === 'win' ? 'EMERGENCE' : 'REABSORBED', 560, 260);
+    g.fillStyle = kind === 'win' ? '#ffd66b' : kind === 'saga' ? '#7dffd4' : '#ff7a5c';
+    g.fillText(kind === 'win' ? 'EMERGENCE' : kind === 'saga' ? 'THE SAGA' : 'REABSORBED', 560, 260);
     g.font = 'italic 600 34px Fraunces, Georgia, serif';
     g.fillStyle = '#eafff5';
     const lin = cachedLineage();
     g.fillText(`${Game.myName || 'a speck'} ${lin ? '★'.repeat(Math.min(5, lin)) : ''}`, 562, 320);
     g.font = '20px "Fragment Mono", monospace';
     g.fillStyle = 'rgba(234,255,245,0.75)';
-    g.fillText(statsLine || '', 562, 368);
+    const lines = Array.isArray(statsLine) ? statsLine : [statsLine || ''];
+    lines.forEach((ln, i) => g.fillText(ln, 562, 368 + i * 36));
     g.font = '16px "Fragment Mono", monospace';
     g.fillStyle = 'rgba(125,255,212,0.6)';
     g.fillText('SOUPLINGS.FUN — A MULTIPLAYER TIDE-POOL EVOLUTION', 562, 560);
@@ -1801,6 +1829,105 @@ function saveBests(b){
   try { localStorage.setItem('soup_bests', JSON.stringify(b)); } catch (e) {}
 }
 
+/* ============ replay clips: the game hands you the file ============
+   Two staggered recorders, each restarted every 30s, so at any moment
+   one of them holds 15-30s of valid, playable footage. */
+const Clips = {
+  on: false, recs: [null, null], chunks: [[], []], t0: [0, 0], timers: [null, null],
+  mime: null, stream: null,
+  start(){
+    if (this.on || !('MediaRecorder' in window) || !canvas.captureStream) return;
+    this.mime = ['video/mp4', 'video/webm;codecs=vp9', 'video/webm']
+      .find(m => { try { return MediaRecorder.isTypeSupported(m); } catch (e) { return false; } });
+    if (!this.mime) return;
+    try { this.stream = canvas.captureStream(24); } catch (e) { return; }
+    this.on = true;
+    this.cycle(0);
+    this.timers[1] = setTimeout(() => { if (this.on) this.cycle(1); }, 15000);
+  },
+  cycle(i){
+    const rec = new MediaRecorder(this.stream, { mimeType: this.mime, videoBitsPerSecond: 2200000 });
+    this.chunks[i] = [];
+    rec.ondataavailable = e => { if (e.data.size) this.chunks[i].push(e.data); };
+    rec.start();
+    this.recs[i] = rec;
+    this.t0[i] = Date.now();
+    clearTimeout(this.timers[i]);
+    this.timers[i] = setTimeout(() => {
+      if (this.on && this.recs[i] === rec && rec.state === 'recording'){ rec.stop(); this.cycle(i); }
+    }, 30000);
+  },
+  save(label){
+    if (!this.on){ toast('clips are not supported in this browser', false); return; }
+    const i = (Date.now() - this.t0[0]) >= (Date.now() - this.t0[1]) ? 0 : 1;
+    const rec = this.recs[i];
+    if (!rec || rec.state !== 'recording'){ toast('no footage yet', false); return; }
+    clearTimeout(this.timers[i]);
+    rec.onstop = () => {
+      const blob = new Blob(this.chunks[i], { type: this.mime });
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = `souplings-${label}.${this.mime.includes('mp4') ? 'mp4' : 'webm'}`;
+      a.click();
+      setTimeout(() => URL.revokeObjectURL(a.href), 30000);
+      toast('clip saved \u2014 post the carnage', true);
+      markShared();
+      if (this.on) this.cycle(i);
+    };
+    rec.stop();
+  }
+};
+$('clipDeathBtn').addEventListener('click', () => Clips.save('demise'));
+$('clipWinBtn').addEventListener('click', () => Clips.save('emergence'));
+$('clipChip').addEventListener('click', () => {
+  $('clipChip').classList.add('hidden');
+  Clips.save('kill');
+});
+function showClipChip(){
+  if (!Clips.on) return;
+  const chip = $('clipChip');
+  chip.classList.remove('hidden');
+  clearTimeout(chip._t);
+  chip._t = setTimeout(() => chip.classList.add('hidden'), 8000);
+}
+
+/* the tide card: a text-native run story for the group chat */
+function tideCardText(){
+  const a = Game.lastArtifact;
+  if (!a) return null;
+  const T = (Net.world && Net.world.tide) || { n: '?', name: 'unknown waters' };
+  const lin = cachedLineage();
+  let streak = 0;
+  try { streak = +localStorage.getItem('soup_streak') || 0; } catch (e) {}
+  const path = Array.from({ length: a.gen }, () => '\u{1F9A0}').join('\u2192')
+    + (a.ashore ? '\u2192\u{1F33F}' : '\u2192\u{1F480}');
+  const line2 = a.ashore
+    ? `${path} ashore in ${fmtTime(a.survived)}`
+    : `${path} reabsorbed at gen ${ROMAN[a.gen - 1]} \u00b7 ${fmtTime(a.survived)}`;
+  const bits = [];
+  if (lin) bits.push(`${lin > 5 ? '\u2605\u00d7' + lin : '\u2605'.repeat(lin)} dynasty`);
+  if (a.kills) bits.push(`${a.kills} kill${a.kills === 1 ? '' : 's'}`);
+  if (streak > 1) bits.push(`${streak}-day streak`);
+  return `SOUPLINGS \u{1F30A} tide ${T.n} \u00b7 ${T.name}\n${line2}\n` +
+    (bits.length ? bits.join(' \u00b7 ') + '\n' : '') + 'souplings.fun';
+}
+
+async function shareTideCard(){
+  const text = tideCardText();
+  if (!text) return;
+  try { localStorage.setItem('soup_shared', '1'); } catch (e) {}
+  const touch = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
+  if (navigator.share && touch){
+    try { await navigator.share({ text }); return; } catch (e) { /* fall through */ }
+  }
+  try {
+    await navigator.clipboard.writeText(text);
+    toast('copied \u2014 drop it in the group chat', false);
+  } catch (e) { toast('could not copy \u2014 long-press to select', false); }
+}
+$('tideCardBtn').addEventListener('click', shareTideCard);
+$('winTideCardBtn').addEventListener('click', shareTideCard);
+
 /* identity edits save themselves — no apply button */
 function sendIdent(){
   if (!Net.joined) return;
@@ -1842,6 +1969,20 @@ $('menuRoll').addEventListener('click', () => {
 });
 $('menuName').addEventListener('change', sendIdent);
 $('menuName').addEventListener('keydown', e => { if (e.key === 'Enter') e.target.blur(); });
+$('sagaBtn').addEventListener('click', async () => {
+  const lin = cachedLineage();
+  const life = cachedLife() || { runs: 0, time: 0, dna: 0, kills: 0 };
+  const b = loadBests();
+  const ep = (DYNASTY_TITLES.find(([n]) => lin >= n) || [])[1];
+  const stars = lin ? (lin > 5 ? `\u2605\u00d7${lin}` : '\u2605'.repeat(lin)) : 'unstarred';
+  const lines = [
+    `${stars} dynasty${ep ? ` \u00b7 ${ep}` : ''}`,
+    `${life.runs || 0} specks lived \u00b7 ${fmtLong(life.time || 0)} in the soup`,
+    `${life.dna || 0} DNA gathered \u00b7 ${life.kills || 0} kills all-time`
+  ];
+  if (b.fastest) lines.push(`fastest emergence \u00b7 ${fmtTime(b.fastest)}`);
+  await shareWithCard('saga', lines, `the House of ${savedName() || 'a speck'} \u2014 ${stars} in the soup`);
+});
 $('aboutBtn').addEventListener('click', openMenu);
 $('aboutCloseBtn').addEventListener('click', closeMenu);
 $('menuBtn').addEventListener('click', openMenu);
@@ -1922,20 +2063,30 @@ const SAVE_V = 1;
 
 /* arrived through a friend's invite link? */
 try {
-  const bp = new URLSearchParams(location.search).get('buddy');
+  const qp = new URLSearchParams(location.search);
+  const bp = qp.get('buddy');
   if (bp){
     Game.buddyCode = bp;
+    Game.calledBy = (qp.get('from') || '').slice(0, 24);
+    const avg = qp.get('avenge');
     history.replaceState(null, '', location.pathname);
-    toast('a friend awaits — begin to surface beside them', true);
+    toast(Game.calledBy
+      ? (avg ? `${Game.calledBy} has fallen — answer the call and avenge them`
+             : `${Game.calledBy}'s line calls you — begin to surface beside them`)
+      : 'a friend awaits — begin to surface beside them', true);
   }
 } catch (e) {}
 
-$('inviteBtn').addEventListener('click', () => Net.invite());
+$('inviteBtn').addEventListener('click', () => { Game.inviteAvenge = false; Net.invite(); });
+$('avengeBtn').addEventListener('click', () => { Game.inviteAvenge = true; Net.invite(true); });
 Net.onInvite = async m => {
-  const link = `${location.origin}/?buddy=${m.code}`;
+  let link = `${location.origin}/?buddy=${m.code}&from=${encodeURIComponent((m.from || '').slice(0, 24))}`;
+  if (Game.inviteAvenge) link += '&avenge=1';
   try {
     await navigator.clipboard.writeText(link);
-    toast('invite link copied — they will surface beside you', true);
+    toast(Game.inviteAvenge
+      ? 'avenge link copied — send it to someone with teeth'
+      : 'invite link copied — they will surface beside you', true);
   } catch (e) {
     toast(link, false);
   }
