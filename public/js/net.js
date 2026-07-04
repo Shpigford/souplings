@@ -141,16 +141,15 @@ const Net = {
     if (this.ws && this.ws.readyState === 1) this.ws.send(JSON.stringify(o));
   },
   join(name, buddy){
-    let hue = 0, trail = 0, shape = 0;
+    let hue = 0, trail = 0;
     try {
       hue = +localStorage.getItem('soup_hue') || 0;
       trail = +localStorage.getItem('soup_trail') || 0;
-      shape = +localStorage.getItem('soup_shape') || 0;
     } catch (e) {}
-    this.send({ t: 'join', name, token: this.token(), hue, trail, shape, buddy: buddy || undefined });
+    this.send({ t: 'join', name, token: this.token(), hue, trail, buddy: buddy || undefined });
   },
   invite(avenge){ this.send({ t: 'invite', avenge: !!avenge }); },
-  ident(name, hue, trail, shape){ this.send({ t: 'ident', name, hue, trail, shape }); },
+  ident(name, hue, trail){ this.send({ t: 'ident', name, hue, trail }); },
   input(tx, ty, th, dash){
     this.send({ t: 'input', tx: Math.round(tx), ty: Math.round(ty), th: +th.toFixed(2), dash: !!dash });
   },

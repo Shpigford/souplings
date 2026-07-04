@@ -233,6 +233,3 @@ const HUE_UNLOCKS = [[158, 0], [205, 0], [95, 1], [45, 2], [262, 3], [305, 4], [
 const TRAIL_NAMES = ['plain', 'bubbles', 'gleam', 'murk'];
 const TRAIL_UNLOCKS = [[0, 0], [1, 1], [2, 3], [3, 5]];   // [trail index, emergences required]
 
-/* body silhouettes: how your membrane wobbles, earned by emergences */
-const SHAPE_NAMES = ['round', 'comet', 'thorn', 'amoeba'];
-const SHAPE_UNLOCKS = [[0, 0], [1, 2], [2, 4], [3, 6]];   // [shape index, emergences required]

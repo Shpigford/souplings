@@ -338,7 +338,6 @@ function drawCreature(ctx, c, t){
   const mPat = mut & 7, mCrest = (mut >> 3) & 7, mEyes = (mut >> 6) & 7, mAcc = (mut >> 9) & 7;
 
   /* ---- membrane blob points ---- */
-  const shape = c.shape || 0;
   const N = 16, pts = [];
   for (let i = 0; i < N; i++){
     const a = i / N * TAU;
@@ -352,15 +351,7 @@ function drawCreature(ctx, c, t){
         + 0.05 * Math.sin(3 * a + t * 2.1 + seed)
         + 0.035 * Math.sin(5 * a - t * 1.6 + seed * 2));
     }
-    if (shape === 2) rr = r * (1
-      + 0.13 * Math.sin(7 * a + t * 1.4 + seed)
-      + 0.03 * Math.sin(3 * a + t * 2.1 + seed));
-    else if (shape === 3) rr = r * (1
-      + 0.16 * Math.sin(2 * a + t * 0.9 + seed)
-      + 0.09 * Math.sin(3 * a - t * 1.4 + seed * 2));
-    let px = Math.cos(a) * rr * (1 + squash), py = Math.sin(a) * rr * (1 - squash * 0.55);
-    if (shape === 1){ px *= 1.16 + 0.1 * Math.cos(a); py *= 0.85; }
-    pts.push([px, py]);
+    pts.push([Math.cos(a) * rr * (1 + squash), Math.sin(a) * rr * (1 - squash * 0.55)]);
   }
 
   /* ---- flagella (behind body) ---- */

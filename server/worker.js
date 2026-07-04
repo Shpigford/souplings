@@ -5,7 +5,7 @@
    ============================================================ */
 
 import {
-  Cell, World, PARTS, PART_KEYS, FOOD_TYPES, NEWBIE_R, HUE_UNLOCKS, TRAIL_UNLOCKS, SHAPE_UNLOCKS,
+  Cell, World, PARTS, PART_KEYS, FOOD_TYPES, NEWBIE_R, HUE_UNLOCKS, TRAIL_UNLOCKS,
   capacityFor, genomeLevels, MOUTH_KEYS, tideFor, weekNumber, orderFor, EMOTES, MUT_WORDS, packMut, mutTitleFor,
   randomGenome, partCost, randomSpeciesName, isValidSpeciesName, growthNeedFor,
   rand, randInt, pick, clamp, dist, TAU
@@ -690,9 +690,6 @@ export class Soup {
         const wTrail = +m.trail;
         const tOpt = TRAIL_UNLOCKS.find(u => u[0] === wTrail);
         if (tOpt && cl.lineage >= tOpt[1]) cl.trail = wTrail;
-        const wShape = +m.shape;
-        const sOpt = SHAPE_UNLOCKS.find(u => u[0] === wShape);
-        if (sOpt && cl.lineage >= sOpt[1]) cl.shape = wShape;
         this.saveProfile(cl);
         this.send(cl, { t: 'renamed', name: cl.name });
         break;
@@ -742,9 +739,6 @@ export class Soup {
         const wantTrail = +m.trail;
         const trailOpt = TRAIL_UNLOCKS.find(u => u[0] === wantTrail);
         if (trailOpt && cl.lineage >= trailOpt[1]) cl.trail = wantTrail;
-        const wantShape = +m.shape;
-        const shapeOpt = SHAPE_UNLOCKS.find(u => u[0] === wantShape);
-        if (shapeOpt && cl.lineage >= shapeOpt[1]) cl.shape = wantShape;
         /* a run parked by a disconnect? resume it instead of resetting */
         let resumed = false;
         if (cl.token){
@@ -1281,7 +1275,7 @@ export class Soup {
         Math.round(c.genome.hue), partsStr(c.genome.parts),
         (c.genome.carn ? 1 : 0) | (c.genome.aggro ? 2 : 0) | (c.isPlayer ? 4 : 0) | (c.frenzy ? 8 : 0)
       ];
-      if (c.client) row.push(c.client.name, c.client.run.gen, c.client.run.dnaTotal, c.client.lineage, c.client.trail || 0, c.client.shape || 0, c.client.mut ? packMut(c.client.mut) : 0, c.client.dseed || 0);
+      if (c.client) row.push(c.client.name, c.client.run.gen, c.client.run.dnaTotal, c.client.lineage, c.client.trail || 0, c.client.mut ? packMut(c.client.mut) : 0, c.client.dseed || 0);
       return row;
     });
     const foodArr = world.food.map(f =>

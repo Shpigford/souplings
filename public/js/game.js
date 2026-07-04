@@ -723,7 +723,7 @@ function sample(){
       p.partsStr = e1[10];
       p.statsR = p.r;
     }
-    if (e1.length > 12){ p.name = e1[12]; p.gen = e1[13]; p.dnaTotal = e1[14]; p.lineage = e1[15] || 0; p.trail = e1[16] || 0; p.shape = e1[17] || 0; p.mut = e1[18] || 0; p.dseed = e1[19] || 0; }
+    if (e1.length > 12){ p.name = e1[12]; p.gen = e1[13]; p.dnaTotal = e1[14]; p.lineage = e1[15] || 0; p.trail = e1[16] || 0; p.mut = e1[17] || 0; p.dseed = e1[18] || 0; }
     live.push(p);
     if (p.id === Net.myId) Game.mePuppet = p;
   }
@@ -1152,7 +1152,10 @@ function esc(s){
 /* cache own genome for share cards (the puppet dies before the screen shows) */
 function cacheOwnGenome(){
   const meP = Game.mePuppet;
-  if (meP) Game.lastOwnGenome = { hue: meP.genome.hue, parts: { ...meP.genome.parts } };
+  if (meP){
+    Game.lastOwnGenome = { hue: meP.genome.hue, parts: { ...meP.genome.parts } };
+    Game.lastOwnMeta = { dseed: meP.dseed || 0, lineage: meP.lineage || 0, mut: meP.mut || 0 };
+  }
 }
 
 /* a proper share image: your creature, your legend, the url */
@@ -1163,10 +1166,12 @@ function buildShareCard(kind, statsLine){
     const g = c.getContext('2d');
     Backdrop.draw(g, 1200, 630, { x: 0, y: 0 }, 2.3);
     const genome = Game.lastOwnGenome || { hue: 158, parts: {} };
+    const meta = Game.lastOwnMeta || {};
     const mock = {
       x: 300, y: 330, r: 150, dir: -0.4,
       vx: 40, vy: 0, genome: { ...genome, carn: false, aggro: false },
       stats: deriveStats(genome, 150, true),
+      dseed: meta.dseed || 0, lineage: meta.lineage || 0, mut: meta.mut || 0,
       wobbleSeed: 7, mouthT: 0, biteT: 0, hurtT: 0, iframes: 0, dashT: 0
     };
     drawCreature(g, mock, 2.3);
@@ -1469,6 +1474,7 @@ function openEditor(){
     genome: meP.genome,
     stats: deriveStats(meP.genome, 60, true),
     wobbleSeed: meP.wobbleSeed,
+    dseed: meP.dseed || 0, lineage: meP.lineage || 0, mut: meP.mut || 0,
     mouthT: 0, biteT: 0, hurtT: 0, iframes: 0, dashT: 0
   };
   refreshEditor();
@@ -1910,31 +1916,6 @@ function buildTrailRow(){
       row.appendChild(chip);
     }
   }
-  buildShapeRow();
-}
-
-function buildShapeRow(){
-  const lin = cachedLineage();
-  let sel = 0;
-  try { sel = +localStorage.getItem('soup_shape') || 0; } catch (e) {}
-  for (const id of ['shapeRow', 'menuShapeRow']){
-    const row = $(id);
-    if (!row) continue;
-    row.innerHTML = '';
-    for (const [idx, req] of SHAPE_UNLOCKS){
-      const chip = document.createElement('button');
-      chip.className = 'trailChip mono' + (lin < req ? ' locked' : '') + (idx === sel ? ' sel' : '');
-      chip.textContent = SHAPE_NAMES[idx] + (lin < req ? ` ★${req}` : '');
-      chip.title = lin < req ? `form unlocks at dynasty ★${req}` : 'body form';
-      chip.addEventListener('click', () => {
-        if (lin < req){ toast(`that form unlocks at dynasty ${'★'.repeat(req)}`, false); return; }
-        try { localStorage.setItem('soup_shape', String(idx)); } catch (e) {}
-        buildHueRow();
-        sendIdent();
-      });
-      row.appendChild(chip);
-    }
-  }
 }
 
 /* personal bests, kept on this device */
@@ -2072,15 +2053,14 @@ $('winTideCardBtn').addEventListener('click', shareTideCard);
 /* identity edits save themselves — no apply button */
 function sendIdent(){
   if (!Net.joined) return;
-  let hue = 158, trail = 0, shape = 0;
+  let hue = 158, trail = 0;
   try {
     hue = +localStorage.getItem('soup_hue') || 158;
     trail = +localStorage.getItem('soup_trail') || 0;
-    shape = +localStorage.getItem('soup_shape') || 0;
   } catch (e) {}
   const nameEl = $('menuName');
   const name = Game.menuOpen && nameEl.value.trim() ? nameEl.value.trim() : (Game.myName || '');
-  Net.ident(name, hue, trail, shape);
+  Net.ident(name, hue, trail);
 }
 
 /* the about card doubles as the pause menu: while open in-game, you encyst */
