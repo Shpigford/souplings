@@ -72,6 +72,7 @@ export class Soup {
     this.vaults = [];
     this.inkZones = [];
     this.invites = new Map();
+    this.shore = { total: 0, list: [] };   // the permanent wall of the emerged
     state.blockConcurrencyWhile(async () => {
       const saved = await state.storage.get('stats');
       if (saved) this.stats = { ...this.stats, ...saved };
@@ -79,6 +80,8 @@ export class Soup {
       if (day) this.daily = day;
       const ord = await state.storage.get('order');
       if (ord) this.order = ord;
+      const sh = await state.storage.get('shore');
+      if (sh) this.shore = sh;
     });
     this.seedWorld();
   }
@@ -167,7 +170,7 @@ export class Soup {
       lineage: 0, cyst: 0, editorOpen: false, lastDamageAt: 0, trail: 0, shape: 0
     };
     this.clients.set(ws, cl);
-    this.send(cl, { t: 'welcome', id: cl.id, radius: WORLD_R, hazards: this.world.hazards, world: this.worldStats() });
+    this.send(cl, { t: 'welcome', id: cl.id, radius: WORLD_R, hazards: this.world.hazards, world: this.worldStats(), shore: this.shore });
 
     ws.addEventListener('message', ev => {
       let m;
@@ -1041,6 +1044,13 @@ export class Soup {
         const rs = this.runStats(cl);
         this.stats.ashore++;
         cl.lineage++;
+        /* plant the monument: the shore remembers this line forever */
+        const mon = { n: cl.name, s: cl.lineage, a: rand(0, TAU), d: rand(30, 85), t: Date.now() };
+        this.shore.total++;
+        this.shore.list.push(mon);
+        if (this.shore.list.length > 500) this.shore.list.shift();
+        this.state.storage.put('shore', this.shore);
+        this.events.push({ e: 'shoreadd', mon });
         const day = this.ensureDaily();
         day.ashore++;
         if (!day.fastest || rs.survived < day.fastest.s) day.fastest = { name: cl.name, s: rs.survived };

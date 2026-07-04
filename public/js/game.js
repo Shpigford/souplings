@@ -63,6 +63,7 @@ resize();
 
 Net.onWelcome = () => {
   Game.world = new World(Net.radius);
+  Game.shore = Net.shore || { total: 0, list: [] };
   Game.world.hazards = Net.hazards;
   Game.puppets.clear();
   Game.foodCache.clear();
@@ -816,6 +817,17 @@ function processEvents(){
       case 'ink':
         world.inkCloud(ev.x, ev.y);
         break;
+      case 'shoreadd': {
+        if (Game.shore && ev.mon){
+          Game.shore.list.push(ev.mon);
+          Game.shore.total++;
+          const mx = Math.cos(ev.mon.a) * (Game.world.radius + ev.mon.d);
+          const my = Math.sin(ev.mon.a) * (Game.world.radius + ev.mon.d);
+          world.burst(mx, my, 'rgba(255,214,107,0.9)', 18, 160, 1.1, 3);
+          killFeedLine(`\u{1F33F} ${esc(ev.mon.n)} stands ashore`, true);
+        }
+        break;
+      }
       case 'orderdone': {
         showBanner('THE SOUP PREVAILS', ev.label);
         AudioSys.win && AudioSys.win();
@@ -1593,6 +1605,10 @@ function render(){
       DPR * (H / 2 + sy - Game.cam.y * z));
 
     world.drawEdge(ctx, t);
+    world.drawShore(ctx, t, Game.shore && Game.shore.list, {
+      x: Game.cam.x, y: Game.cam.y,
+      visR: (Math.max(W, H) / 2) / Game.cam.zoom + 140
+    });
     world.drawHazards(ctx, t);
     world.drawVaults(ctx, t, world.vaults);
     world.drawFood(ctx, t);
@@ -1605,6 +1621,24 @@ function render(){
     /* name labels + off-screen human indicators, in screen space */
     ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
     ctx.textAlign = 'center';
+    if (Game.shore && Game.shore.list && z > 0.3){
+      ctx.font = '10px "Fragment Mono", monospace';
+      let drawn = 0;
+      for (let mi = Game.shore.list.length - 1; mi >= 0 && drawn < 14; mi--){
+        const mn = Game.shore.list[mi];
+        const mx = Math.cos(mn.a) * (world.radius + mn.d);
+        const my = Math.sin(mn.a) * (world.radius + mn.d);
+        const sx3 = (mx - Game.cam.x) * z + W / 2;
+        const sy3 = (my - Game.cam.y) * z + H / 2;
+        if (sx3 < -40 || sx3 > W + 40 || sy3 < -40 || sy3 > H + 40) continue;
+        drawn++;
+        ctx.font = '11px "Fragment Mono", monospace';
+        ctx.fillStyle = 'rgba(3,12,18,0.7)';
+        ctx.fillText(mn.n, sx3 + 1, sy3 - 34 * Math.min(1, z) + 1);
+        ctx.fillStyle = 'rgba(214,196,161,0.9)';
+        ctx.fillText(mn.n, sx3, sy3 - 34 * Math.min(1, z));
+      }
+    }
     for (const c of world.cells){
       if (!c.name) continue;
       const isMe = c.id === Net.myId;

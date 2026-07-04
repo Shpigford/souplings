@@ -67,6 +67,7 @@ const Net = {
     switch (m.t){
       case 'welcome':
         this.myId = m.id;
+        this.shore = m.shore;
         this.radius = m.radius;
         this.hazards = m.hazards;
         if (m.world) this.world = m.world;

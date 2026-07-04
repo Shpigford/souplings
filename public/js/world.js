@@ -253,6 +253,44 @@ class World {
 
   /* -------------------- drawing -------------------- */
 
+  /* the shore: permanent monuments of every emerged dynasty */
+  drawShore(ctx, t, list, cam){
+    if (!list || !list.length) return;
+    for (const m of list){
+      const x = Math.cos(m.a) * (this.radius + m.d);
+      const y = Math.sin(m.a) * (this.radius + m.d);
+      if (cam && dist(cam.x, cam.y, x, y) > cam.visR) continue;
+      ctx.save();
+      ctx.translate(x, y);
+      ctx.rotate(m.a + Math.PI / 2);
+      /* a soft halo so the wall reads from open water */
+      const halo = ctx.createRadialGradient(0, 0, 2, 0, 0, 34);
+      halo.addColorStop(0, 'rgba(214,196,161,0.22)');
+      halo.addColorStop(1, 'rgba(214,196,161,0)');
+      ctx.fillStyle = halo;
+      ctx.beginPath(); ctx.arc(0, 0, 34, 0, TAU); ctx.fill();
+      ctx.strokeStyle = 'rgba(214,196,161,0.75)';
+      ctx.lineWidth = 2.4;
+      ctx.beginPath();
+      for (let i2 = 0; i2 < 16; i2++){
+        const th = i2 * 0.55, rr = 2.2 + i2 * 1.15;
+        const px = Math.cos(th) * rr, py = Math.sin(th) * rr;
+        i2 ? ctx.lineTo(px, py) : ctx.moveTo(px, py);
+      }
+      ctx.stroke();
+      if (m.s){
+        ctx.fillStyle = 'rgba(255,214,107,0.9)';
+        const k0 = Math.min(5, m.s);
+        for (let k = 0; k < k0; k++){
+          ctx.beginPath();
+          ctx.arc((k - (k0 - 1) / 2) * 7, -26, 2, 0, TAU);
+          ctx.fill();
+        }
+      }
+      ctx.restore();
+    }
+  }
+
   drawEdge(ctx, t){
     /* faint pool floor */
     ctx.save();
