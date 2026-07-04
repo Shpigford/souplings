@@ -1635,6 +1635,7 @@ function buildHueRow(){
         if (lin < req){ toast(`that color unlocks at dynasty ${'★'.repeat(req)}`, false); return; }
         try { localStorage.setItem('soup_hue', String(h)); } catch (e) {}
         buildHueRow();
+        sendIdent();
       });
       row.appendChild(dot);
     }
@@ -1672,6 +1673,7 @@ function buildTrailRow(){
         if (lin < req){ toast(`that wake unlocks at dynasty ${'★'.repeat(req)}`, false); return; }
         try { localStorage.setItem('soup_trail', String(idx)); } catch (e) {}
         buildHueRow();
+        sendIdent();
       });
       row.appendChild(chip);
     }
@@ -1696,6 +1698,7 @@ function buildShapeRow(){
         if (lin < req){ toast(`that form unlocks at dynasty ${'★'.repeat(req)}`, false); return; }
         try { localStorage.setItem('soup_shape', String(idx)); } catch (e) {}
         buildHueRow();
+        sendIdent();
       });
       row.appendChild(chip);
     }
@@ -1708,6 +1711,20 @@ function loadBests(){
 }
 function saveBests(b){
   try { localStorage.setItem('soup_bests', JSON.stringify(b)); } catch (e) {}
+}
+
+/* identity edits save themselves — no apply button */
+function sendIdent(){
+  if (!Net.joined) return;
+  let hue = 158, trail = 0, shape = 0;
+  try {
+    hue = +localStorage.getItem('soup_hue') || 158;
+    trail = +localStorage.getItem('soup_trail') || 0;
+    shape = +localStorage.getItem('soup_shape') || 0;
+  } catch (e) {}
+  const nameEl = $('menuName');
+  const name = Game.menuOpen && nameEl.value.trim() ? nameEl.value.trim() : (Game.myName || '');
+  Net.ident(name, hue, trail, shape);
 }
 
 /* the about card doubles as the pause menu: while open in-game, you encyst */
@@ -1731,16 +1748,12 @@ function closeMenu(){
   $('about').classList.add('hidden');
   menuSafetyFlag();
 }
-$('menuRoll').addEventListener('click', () => { $('menuName').value = randomSpeciesName(); });
-$('identApply').addEventListener('click', () => {
-  let hue = 158, trail = 0, shape = 0;
-  try {
-    hue = +localStorage.getItem('soup_hue') || 158;
-    trail = +localStorage.getItem('soup_trail') || 0;
-    shape = +localStorage.getItem('soup_shape') || 0;
-  } catch (e) {}
-  Net.ident($('menuName').value.trim(), hue, trail, shape);
+$('menuRoll').addEventListener('click', () => {
+  $('menuName').value = randomSpeciesName();
+  sendIdent();
 });
+$('menuName').addEventListener('change', sendIdent);
+$('menuName').addEventListener('keydown', e => { if (e.key === 'Enter') e.target.blur(); });
 $('aboutBtn').addEventListener('click', openMenu);
 $('aboutCloseBtn').addEventListener('click', closeMenu);
 $('menuBtn').addEventListener('click', openMenu);

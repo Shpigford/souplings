@@ -815,6 +815,38 @@ button.danger:hover{ box-shadow:0 0 16px rgba(255,122,92,.25); }
 #currentShift .shiftSub{ color:var(--mint-dim); letter-spacing:.2em; }
 @keyframes shiftPulse{ 0%,100%{ opacity:.65; } 50%{ opacity:1; } }
 
+/* ============ controls key-map ============ */
+
+.controlsGrid{
+  display:grid;
+  grid-template-columns:auto auto;
+  gap:.45rem 1rem;
+  justify-content:center;
+  align-items:center;
+  margin-bottom:1.1rem;
+}
+.controlsGrid .cLabel{
+  text-align:right;
+  color:var(--mint-dim);
+  letter-spacing:.15em;
+  text-transform:uppercase;
+  font-size:.62rem;
+}
+.controlsGrid .cKeys{ display:flex; gap:.4rem; align-items:center; text-align:left; }
+.controlsGrid .cKeys em{ font-style:normal; color:var(--mint-dim); font-size:.6rem; }
+.controlsGrid kbd{
+  display:inline-block;
+  padding:.22em .6em;
+  font-family:var(--font-mono);
+  font-size:.62rem;
+  letter-spacing:.08em;
+  color:var(--mint);
+  border:1px solid rgba(125,255,212,.3);
+  border-bottom-width:2px;
+  border-radius:7px;
+  background:rgba(125,255,212,.05);
+}
+
 /* ============ the chronicle ============ */
 
 #chronicle{

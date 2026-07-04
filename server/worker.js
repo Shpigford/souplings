@@ -66,7 +66,7 @@ export class Soup {
     this.stats = { joins: 0, deaths: 0, ashore: 0, pvp: 0, fastest: null, deadliest: null, dynasty: null };
     this.daily = null;
     this.goldT = 60 + Math.random() * 60;
-    this.vaultT = 45 + Math.random() * 45;
+    this.vaultT = 120 + Math.random() * 60;
     this.vaults = [];
     this.inkZones = [];
     this.invites = new Map();
@@ -189,7 +189,8 @@ export class Soup {
 
   spawnVault(){
     const tier = randInt(1, 3);
-    const a = rand(0, TAU), d = WORLD_R * rand(0.4, 0.85);
+    /* deep water only: the hoard is guarded by the neighborhood */
+    const a = rand(0, TAU), d = WORLD_R * rand(0.55, 0.9);
     this.vaults.push({
       id: this.nextId++,
       x: Math.cos(a) * d, y: Math.sin(a) * d,
@@ -983,8 +984,8 @@ export class Soup {
        toughness and payout; max damage opens the biggest in ~5 seconds. */
     if (players.length > 0){
       this.vaultT -= dt;
-      if (this.vaultT <= 0 && this.vaults.length < 2){
-        this.vaultT = 70 + Math.random() * 50;
+      if (this.vaultT <= 0 && this.vaults.length < 1){
+        this.vaultT = 150 + Math.random() * 90;
         this.spawnVault();
       }
     }
@@ -1001,12 +1002,12 @@ export class Soup {
         if (v.hp <= 0 && !v.broken){
           v.broken = true;
           /* the hoard: an orb shower anyone can loot, plus a cut for the cracker */
-          const orbs = 4 + v.tier * 4;
+          const orbs = 3 + v.tier * 2;
           for (let i = 0; i < orbs; i++){
             const f = world.spawnFood('dna', v.x + rand(-30, 30), v.y + rand(-30, 30));
             f.vx = rand(-140, 140); f.vy = rand(-140, 140);
           }
-          const cut = 10 + v.tier * 15;
+          const cut = 5 + v.tier * 10;
           cl2.run.dna += cut;
           cl2.run.dnaTotal += cut;
           this.events.push({ e: 'vbreak', x: Math.round(v.x), y: Math.round(v.y), tier: v.tier, name: cl2.name, id: cl2.id, cut });
