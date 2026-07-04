@@ -943,6 +943,10 @@ export class Soup {
         c.recalc();
         c.hp = c.stats.maxHp;
         this.events.push({ e: 'molt', id: cl.id, gen: run.gen, x: Math.round(c.x), y: Math.round(c.y) });
+        if (run.gen === 4){
+          this.send(cl, { t: 'hint', key: 'marked', msg: 'the deep has your scent now — hunters see you from afar' });
+        }
+        if (run.gen === 5) this.events.push({ e: 'apex', id: cl.id, name: cl.name });
       }
     }
 

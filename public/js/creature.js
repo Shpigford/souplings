@@ -122,8 +122,9 @@ class Cell {
         if (!tgt || !tgt.alive){ th.mode = 'wander'; break; }
         /* predators are lazy: a chase that drags on isn't worth it */
         th.huntT = (th.huntT || 0) + dt;
-        /* big prey is worth the chase — late-game waters hunt harder */
-        const patience = tgt.isPlayer && tgt.r > 60 ? 8 : 4.5;
+        /* big prey is worth the chase — and a starred line is never let go easily */
+        const tlin = tgt.isPlayer && tgt.client ? Math.min(5, tgt.client.lineage || 0) : 0;
+        const patience = (tgt.isPlayer && tgt.r > 60 ? 8 : 4.5) + 0.7 * tlin;
         if (th.huntT > patience){
           th.black = tgt;
           th.blackT = 9;
@@ -177,16 +178,22 @@ class Cell {
 
     /* 2. hunt smaller cells if aggressive */
     if (this.genome.aggro){
-      let prey = null, pd = s.sense;
+      let prey = null, pd = Infinity;
       for (const c of world.cells){
         if (c === this || !c.alive) continue;
-        if (c.r > this.r * 0.85) continue;
+        /* the soup remembers a starred line: bolder against royalty,
+           and gen IV+ drifters are scented from far beyond normal range */
+        const lin = c.isPlayer && c.client ? Math.min(5, c.client.lineage || 0) : 0;
+        const pgen = c.isPlayer && c.client && c.client.run ? c.client.run.gen : 0;
+        const bold = Math.min(1.15, 0.85 + 0.06 * lin + (pgen >= 5 ? 0.15 : 0));
+        if (c.r > this.r * bold) continue;
         if (c.isPlayer && c.r < NEWBIE_R) continue;        // newborn players are beneath notice
         if (c.iframes > 1) continue;                       // freshly spawned or encysted — not worth stalking
         if (th.blackT > 0 && c === th.black) continue;     // gave up on that one recently
         /* the nursery shelters only the small — grown campers are fair game */
         if (nursery && c.r < NEWBIE_R && Math.hypot(c.x, c.y) < nursery) continue;
         const d = dist(this.x, this.y, c.x, c.y);
+        if (d > s.sense * (pgen >= 4 ? 1.5 : 1)) continue;
         if (d < pd){ pd = d; prey = c; }
       }
       if (prey){

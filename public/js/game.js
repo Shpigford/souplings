@@ -768,6 +768,13 @@ function processEvents(){
       case 'ink':
         world.inkCloud(ev.x, ev.y);
         break;
+      case 'apex': {
+        if (ev.id !== Net.myId){
+          toast(`${ev.name} nears the shore — a Sovereign swims among you`, false);
+          killFeedLine(`\u{1F451} ${ev.name} \u00b7 Gen V \u00b7 hunt the Sovereign`, true);
+        }
+        break;
+      }
       case 'zap': {
         world.burst(ev.x, ev.y, 'rgba(190,225,255,0.95)', 10, 170, 0.4, 2.5);
         if (ev.tgt === Net.myId) AudioSys.zap();
