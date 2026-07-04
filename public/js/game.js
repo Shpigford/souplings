@@ -214,6 +214,19 @@ Net.onBuyok = m => {
   hudCache.dna = -1;
 };
 
+Net.onSellok = m => {
+  AudioSys.buy();
+  const meP = Game.puppets.get(Net.myId);
+  if (meP){
+    if (m.lvl > 0) meP.genome.parts[m.key] = m.lvl;
+    else delete meP.genome.parts[m.key];
+    meP.partsStr = '';
+  }
+  if (!(m.reab > 0)) Game.reabMode = false;
+  refreshEditor();
+  hudCache.dna = -1;
+};
+
 Net.onStatus = state => {
   Game.connState = state;
   updateConnStatus();
@@ -758,6 +771,7 @@ function processEvents(){
           AudioSys.molt();
           Game.shake = 10;
           genSplash(ev.gen);
+          toast(`your body grows — room for ${capacityFor(ev.gen)} organ levels · +1 reabsorb`, false);
           const unlocked = PART_KEYS.filter(k => (PARTS[k].gen || 1) === ev.gen);
           for (const k of unlocked) toast(`the chamber grows — ${PARTS[k].name} unlocked`, true);
           refreshEditor();
@@ -1203,67 +1217,141 @@ function myParts(){
   return meP ? meP.genome.parts : {};
 }
 
+function makePartCard(key){
+  const def = PARTS[key];
+  const card = document.createElement('div');
+  card.className = 'partCard';
+  card.dataset.key = key;
+
+  const icon = document.createElement('canvas');
+  icon.width = icon.height = 104;
+  drawPartIcon(icon.getContext('2d'), key);
+
+  const name = document.createElement('div');
+  name.className = 'partName';
+  name.innerHTML = `${def.name} <span class="pips"></span>`;
+
+  const desc = document.createElement('div');
+  desc.className = 'partDesc';
+  desc.textContent = def.desc;
+
+  const btn = document.createElement('button');
+  btn.className = 'buyBtn';
+  btn.addEventListener('click', () => Game.reabMode ? Net.sell(key) : Net.buy(key));
+
+  card.append(icon, name, btn, desc);
+  return card;
+}
+
 function buildEditor(){
-  for (const key of PART_KEYS){
-    const def = PARTS[key];
-    const card = document.createElement('div');
-    card.className = 'partCard';
-    card.dataset.key = key;
+  /* body budget: how much creature you're allowed to be */
+  const capRow = document.createElement('div');
+  capRow.className = 'capRow';
+  capRow.innerHTML =
+    `<span class="capLabel mono">body</span>` +
+    `<div class="capBar" id="capBar"></div>` +
+    `<span class="capText mono" id="capText"></span>` +
+    `<button id="reabsorbBtn" class="ghost mono reabBtn" title="shed one organ level for half its cost"></button>`;
+  ui.partsGrid.appendChild(capRow);
+  capRow.querySelector('#reabsorbBtn').addEventListener('click', () => {
+    if (!(Net.me.reab > 0)) return;
+    Game.reabMode = !Game.reabMode;
+    refreshEditor();
+  });
 
-    const icon = document.createElement('canvas');
-    icon.width = icon.height = 104;
-    drawPartIcon(icon.getContext('2d'), key);
-
-    const name = document.createElement('div');
-    name.className = 'partName';
-    name.innerHTML = `${def.name} <span class="pips"></span>`;
-
-    const desc = document.createElement('div');
-    desc.className = 'partDesc';
-    desc.textContent = def.desc;
-
-    const btn = document.createElement('button');
-    btn.className = 'buyBtn';
-    btn.addEventListener('click', () => Net.buy(key));
-
-    card.append(icon, name, btn, desc);
-    ui.partsGrid.appendChild(card);
+  for (const [sys, keys] of ORGAN_SYSTEMS){
+    const group = document.createElement('div');
+    group.className = 'sysGroup';
+    group.innerHTML = `<div class="sysLabel mono">${sys}</div>`;
+    if (sys === 'metabolism'){
+      /* the mouth fork: one or the other, never both */
+      const fork = document.createElement('div');
+      fork.className = 'mouthFork';
+      fork.append(makePartCard('jaw'));
+      const or = document.createElement('div');
+      or.className = 'forkOr mono';
+      or.textContent = 'one mouth — choose';
+      fork.append(or, makePartCard('filter'));
+      group.appendChild(fork);
+      for (const key of keys) if (!MOUTH_KEYS.includes(key)) group.appendChild(makePartCard(key));
+    } else {
+      for (const key of keys) group.appendChild(makePartCard(key));
+    }
+    ui.partsGrid.appendChild(group);
   }
 }
 
 function refreshEditor(){
   const parts = myParts();
   const lin = Game.mePuppet ? (Game.mePuppet.lineage || 0) : 0;
-  for (const card of ui.partsGrid.children){
+  const used = genomeLevels(parts);
+  const cap = capacityFor(Net.me.gen);
+  const atCap = used >= cap;
+  const reab = Net.me.reab || 0;
+  if (!reab) Game.reabMode = false;
+
+  /* capacity bar */
+  const bar = $('capBar');
+  if (bar){
+    bar.innerHTML = Array.from({ length: cap }, (_, i) =>
+      `<span class="capSeg${i < used ? ' on' : ''}"></span>`).join('');
+    $('capText').textContent = `${used}/${cap}`;
+    bar.parentElement.classList.toggle('full', atCap);
+    const rb = $('reabsorbBtn');
+    rb.textContent = Game.reabMode ? 'done shedding' : `reabsorb${reab ? ' · ' + reab : ''}`;
+    rb.disabled = !reab;
+    rb.title = reab ? 'shed one organ level for half its cost' : 'molting grants a reabsorb';
+    rb.classList.toggle('active', Game.reabMode);
+  }
+  ui.partsGrid.classList.toggle('reabMode', Game.reabMode);
+
+  for (const card of ui.partsGrid.querySelectorAll('.partCard')){
     const key = card.dataset.key;
     const def = PARTS[key];
     const lvl = parts[key] || 0;
     const cost = partCost(key, lvl);
     const genLocked = (def.gen || 1) > Net.me.gen;
     const dynLocked = (def.dyn || 0) > lin;
+    const rival = MOUTH_KEYS.includes(key) ? MOUTH_KEYS.find(k => k !== key) : null;
+    const foreclosed = rival && (parts[rival] || 0) > 0;
     const locked = genLocked || dynLocked;
-    card.classList.toggle('locked', locked);
+    card.classList.toggle('locked', locked && !Game.reabMode);
+    card.classList.toggle('foreclosed', !!foreclosed && !Game.reabMode);
     card.classList.toggle('royal', !!def.dyn);
+    card.classList.toggle('owned', lvl > 0);
     const pips = card.querySelector('.pips');
     pips.innerHTML = Array.from({ length: def.max }, (_, i) =>
       `<span class="${i < lvl ? '' : 'off'}">●</span>`).join('');
     const btn = card.querySelector('.buyBtn');
-    if (dynLocked){
+    btn.classList.remove('maxed', 'sell');
+    if (Game.reabMode){
+      if (lvl > 0){
+        btn.textContent = `shed · +${Math.floor(def.cost[lvl - 1] * 0.5)} DNA`;
+        btn.disabled = false;
+        btn.classList.add('sell');
+      } else {
+        btn.textContent = '—';
+        btn.disabled = true;
+      }
+    } else if (dynLocked){
       btn.textContent = `dynasty ${'★'.repeat(def.dyn)}`;
       btn.disabled = true;
-      btn.classList.remove('maxed');
     } else if (genLocked){
       btn.textContent = `Gen ${ROMAN[(def.gen || 1) - 1]}`;
       btn.disabled = true;
-      btn.classList.remove('maxed');
+    } else if (foreclosed){
+      btn.textContent = 'one mouth';
+      btn.disabled = true;
     } else if (cost === null){
       btn.textContent = 'MAX';
       btn.disabled = true;
       btn.classList.add('maxed');
+    } else if (atCap){
+      btn.textContent = 'no room';
+      btn.disabled = true;
     } else {
       btn.textContent = `${cost} DNA`;
       btn.disabled = cost > Net.me.dna;
-      btn.classList.remove('maxed');
     }
   }
   ui.dnaCount2.textContent = Net.me.dna;

@@ -100,6 +100,11 @@ const Net = {
         this.me.dna = m.dna;
         this.onBuyok && this.onBuyok(m);
         break;
+      case 'sellok':
+        this.me.dna = m.dna;
+        this.me.reab = m.reab;
+        this.onSellok && this.onSellok(m);
+        break;
       case 'hint':
         this.onHint && this.onHint(m);
         break;
@@ -146,5 +151,6 @@ const Net = {
     this.send({ t: 'input', tx: Math.round(tx), ty: Math.round(ty), th: +th.toFixed(2), dash: !!dash });
   },
   buy(key){ this.send({ t: 'buy', key }); },
+  sell(key){ this.send({ t: 'sell', key }); },
   respawn(){ this.send({ t: 'respawn' }); }
 };

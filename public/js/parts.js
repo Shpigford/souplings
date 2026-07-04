@@ -155,6 +155,19 @@ function isValidSpeciesName(name){
   return false;
 }
 
+/* the body has limits: total organ levels are capped by generation,
+   and a creature has exactly one mouth */
+const capacityFor = gen => 3 + 2 * gen;
+const genomeLevels = parts => { let n = 0; for (const k in parts) n += parts[k] || 0; return n; };
+const MOUTH_KEYS = ['jaw', 'filter'];
+
+/* the chamber reads as organ systems, not a shopping list */
+const ORGAN_SYSTEMS = [
+  ['locomotion', ['flagellum', 'cilia', 'eye']],
+  ['survival', ['membrane', 'spike', 'ink', 'volt', 'jelly']],
+  ['metabolism', ['jaw', 'filter', 'gland', 'osmo', 'helix']]
+];
+
 const GEN_TITLES = ['Mote', 'Wriggler', 'Darter', 'Lurker', 'Sovereign of the Shallows'];
 const ROMAN = ['I', 'II', 'III', 'IV', 'V'];
 

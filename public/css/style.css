@@ -599,6 +599,60 @@ button:disabled:hover{ transform:none; box-shadow:none; }
 #partsGrid::-webkit-scrollbar{ width:8px; }
 #partsGrid::-webkit-scrollbar-thumb{ background:rgba(125,255,212,.2); border-radius:99px; }
 
+/* body budget bar */
+.capRow{
+  display:flex; align-items:center; gap:.7rem;
+  padding:.55rem .9rem;
+  border:1px solid rgba(125,255,212,.18);
+  border-radius:12px 8px 12px 8px;
+  background:rgba(125,255,212,.05);
+  position:sticky; top:0; z-index:1;
+  backdrop-filter:blur(6px);
+}
+.capRow.full{ border-color:rgba(255,199,90,.45); }
+.capRow.full .capText{ color:var(--gold); }
+.capLabel{ letter-spacing:.25em; text-transform:uppercase; font-size:.58rem; color:var(--mint-dim); }
+.capBar{ display:flex; gap:3px; flex:1; }
+.capSeg{
+  height:10px; flex:1; max-width:26px;
+  border-radius:3px;
+  background:rgba(125,255,212,.12);
+  border:1px solid rgba(125,255,212,.15);
+}
+.capSeg.on{ background:var(--mint); border-color:var(--mint); box-shadow:0 0 6px rgba(125,255,212,.5); }
+.capRow.full .capSeg.on{ background:var(--gold); border-color:var(--gold); box-shadow:0 0 6px rgba(255,199,90,.5); }
+.capText{ font-size:.68rem; color:var(--mint); }
+.reabBtn{ font-size:.58rem; padding:.45em 1em; white-space:nowrap; }
+.reabBtn.active{ color:var(--coral); border-color:rgba(255,122,92,.5); }
+
+/* organ systems */
+.sysGroup{ display:flex; flex-direction:column; gap:.55rem; }
+.sysLabel{
+  margin-top:.35rem;
+  letter-spacing:.3em; text-transform:uppercase;
+  font-size:.56rem; color:var(--mint-dim);
+  display:flex; align-items:center; gap:.7rem;
+}
+.sysLabel::after{ content:''; flex:1; height:1px; background:rgba(125,255,212,.12); }
+
+/* the mouth fork */
+.mouthFork{ display:flex; flex-direction:column; gap:.3rem; }
+.forkOr{
+  align-self:center;
+  font-size:.55rem; letter-spacing:.2em; text-transform:uppercase;
+  color:rgba(255,199,90,.7);
+  padding:.1em .9em;
+  border:1px dashed rgba(255,199,90,.35);
+  border-radius:999px;
+}
+.partCard.foreclosed{ opacity:.4; filter:saturate(.4); }
+.partCard.foreclosed:hover{ border-color:rgba(125,255,212,.14); background:rgba(125,255,212,.045); }
+
+/* reabsorb mode: owned organs offer themselves up */
+#partsGrid.reabMode .partCard.owned{ border-color:rgba(255,122,92,.45); }
+.buyBtn.sell{ color:var(--coral); border-color:rgba(255,122,92,.5); }
+.buyBtn.sell:hover{ box-shadow:0 0 14px rgba(255,122,92,.3); }
+
 .partCard{
   display:grid;
   grid-template-columns:52px minmax(0,1fr) auto;

@@ -6,6 +6,7 @@
 
 import {
   Cell, World, PARTS, PART_KEYS, FOOD_TYPES, NEWBIE_R, HUE_UNLOCKS, TRAIL_UNLOCKS, SHAPE_UNLOCKS,
+  capacityFor, genomeLevels, MOUTH_KEYS,
   randomGenome, partCost, randomSpeciesName, isValidSpeciesName, growthNeedFor,
   rand, randInt, pick, clamp, dist, TAU
 } from './sim.gen.mjs';
@@ -441,7 +442,7 @@ export class Soup {
     const heirloom = 10 + Math.min(90, 15 * cl.lineage);
     cl.run = {
       gen: 1, baseR: 26, dna: heirloom, growth: 0, need: growthNeedFor(1),
-      joinT: Date.now(), eaten: 0, kills: 0, deaths: 0, dnaTotal: heirloom
+      joinT: Date.now(), eaten: 0, kills: 0, deaths: 0, dnaTotal: heirloom, reabsorbs: 0
     };
     cl.ashore = false;
     cl.runBanked = false;
@@ -690,6 +691,11 @@ export class Soup {
         if (!cl.alive || !cl.cell || !PARTS[m.key]) break;
         if ((PARTS[m.key].gen || 1) > cl.run.gen) break;      // not yet unlocked
         if ((PARTS[m.key].dyn || 0) > cl.lineage) break;      // royal organs need an emerged dynasty
+        if (genomeLevels(cl.genome.parts) >= capacityFor(cl.run.gen)) break;   // body is full
+        if (MOUTH_KEYS.includes(m.key)){
+          const rival = MOUTH_KEYS.find(k => k !== m.key);
+          if (cl.genome.parts[rival] > 0) break;              // one mouth per creature
+        }
         const lvl = cl.genome.parts[m.key] || 0;
         const cost = partCost(m.key, lvl);
         if (cost === null || cost > cl.run.dna) break;
@@ -700,6 +706,21 @@ export class Soup {
         cl.cell.recalc();
         cl.cell.hp += Math.max(0, cl.cell.stats.maxHp - oldMax);
         this.send(cl, { t: 'buyok', key: m.key, lvl: lvl + 1, dna: cl.run.dna });
+        break;
+      }
+      case 'sell': {
+        /* a molt-earned reabsorb: shed one organ level for half its cost */
+        if (!cl.alive || !cl.cell || !PARTS[m.key]) break;
+        const lvl = cl.genome.parts[m.key] || 0;
+        if (lvl <= 0 || (cl.run.reabsorbs || 0) <= 0) break;
+        cl.run.reabsorbs--;
+        cl.genome.parts[m.key] = lvl - 1;
+        if (!cl.genome.parts[m.key]) delete cl.genome.parts[m.key];
+        cl.run.dna += Math.floor(PARTS[m.key].cost[lvl - 1] * 0.5);
+        cl.genome.aggro = !!(cl.genome.parts.jaw || cl.genome.parts.spike);
+        cl.cell.recalc();
+        cl.cell.hp = Math.min(cl.cell.hp, cl.cell.stats.maxHp);
+        this.send(cl, { t: 'sellok', key: m.key, lvl: lvl - 1, dna: cl.run.dna, reab: cl.run.reabsorbs });
         break;
       }
       case 'respawn': {
@@ -938,6 +959,7 @@ export class Soup {
         this.send(cl, { t: 'ashore', stats: rs, life: this.lifeView(cl) });
       } else {
         run.gen++;
+        run.reabsorbs = Math.min(2, (run.reabsorbs || 0) + 1);   // molting sheds: one free reabsorb
         run.baseR *= 1.30;
         run.growth = 0;
         run.need = growthNeedFor(run.gen);
@@ -1107,6 +1129,7 @@ export class Soup {
           cl.ws.send(JSON.stringify({
             t: 'you', dna: cl.run.dna, growth: +cl.run.growth.toFixed(1),
             need: cl.run.need, gen: cl.run.gen, cyst: cl.cyst || 0,
+            reab: cl.run.reabsorbs || 0,
             frenzy: cl.frenzyUntil > Date.now() ? 1 : 0,
             slow: cl.slowed ? 1 : 0
           }));
