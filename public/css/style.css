@@ -828,6 +828,16 @@ button:disabled:hover{ transform:none; box-shadow:none; }
 }
 .aboutLink:hover{ color:var(--mint); box-shadow:none; transform:none; }
 
+#about{ overflow-y:auto; align-items:flex-start; }
+#about .aboutCard{ margin:auto; }
+#menuChronicle{
+  margin-top:1.2rem;
+  border-top:1px solid rgba(125,255,212,.12);
+  padding-top:1rem;
+  border-left:none; border-right:none; border-bottom:none;
+  border-radius:0;
+}
+
 .aboutCard{
   max-width:520px;
   padding:2.2rem 2.4rem;
@@ -928,7 +938,7 @@ button.danger:hover{ box-shadow:0 0 16px rgba(255,122,92,.25); }
 
 /* ============ the chronicle ============ */
 
-#chronicle{
+#chronicle, #menuChronicle{
   margin:1.4rem auto 0;
   padding:.9rem 1.2rem;
   max-width:30rem;
@@ -938,54 +948,54 @@ button.danger:hover{ box-shadow:0 0 16px rgba(255,122,92,.25); }
   line-height:1.75;
   animation:riseIn .7s .8s ease both;
 }
-#chronicle .chronTitle{
+#chronicle .chronTitle, #menuChronicle .chronTitle{
   letter-spacing:.3em;
   text-transform:uppercase;
   color:var(--mint-dim);
   margin-bottom:.55rem;
 }
-#chronicle .orderBox{
+#chronicle .orderBox, #menuChronicle .orderBox{
   margin-bottom:.7rem;
   padding:.5rem .7rem .6rem;
   border:1px solid rgba(255,199,90,.25);
   border-radius:10px 6px 10px 6px;
   background:rgba(255,199,90,.05);
 }
-#chronicle .orderHead{
+#chronicle .orderHead, #menuChronicle .orderHead{
   display:flex; justify-content:space-between;
   font-size:.56rem; letter-spacing:.25em; text-transform:uppercase;
   color:rgba(255,199,90,.75);
   margin-bottom:.3rem;
 }
-#chronicle .orderText{ color:var(--gold); margin-bottom:.4rem; }
-#chronicle .orderBar{
+#chronicle .orderText, #menuChronicle .orderText{ color:var(--gold); margin-bottom:.4rem; }
+#chronicle .orderBar, #menuChronicle .orderBar{
   height:6px; border-radius:99px;
   background:rgba(255,199,90,.12);
   overflow:hidden;
 }
-#chronicle .orderBar i{
+#chronicle .orderBar i, #menuChronicle .orderBar i{
   display:block; height:100%;
   background:var(--gold);
   border-radius:99px;
   box-shadow:0 0 8px rgba(255,199,90,.6);
   transition:width .6s ease;
 }
-#chronicle .tideLine{
+#chronicle .tideLine, #menuChronicle .tideLine{
   color:var(--mint);
   margin-bottom:.55rem;
 }
-#chronicle .tideLine b{ color:var(--gold); font-weight:400; }
-#chronicle .counts{ color:rgba(234,255,245,.55); margin-bottom:.55rem; }
-#chronicle .recGrid{
+#chronicle .tideLine b, #menuChronicle .tideLine b{ color:var(--gold); font-weight:400; }
+#chronicle .counts, #menuChronicle .counts{ color:rgba(234,255,245,.55); margin-bottom:.55rem; }
+#chronicle .recGrid, #menuChronicle .recGrid{
   display:grid;
   grid-template-columns:auto auto;
   gap:.15rem 1.1rem;
   justify-content:center;
   text-align:left;
 }
-#chronicle .recGrid .lbl{ color:var(--mint-dim); text-align:right; }
-#chronicle .recGrid .val{ color:var(--gold); opacity:.9; }
-#chronicle .today{ color:var(--mint); opacity:.8; display:block; margin-top:.55rem; }
+#chronicle .recGrid .lbl, #menuChronicle .recGrid .lbl{ color:var(--mint-dim); text-align:right; }
+#chronicle .recGrid .val, #menuChronicle .recGrid .val{ color:var(--gold); opacity:.9; }
+#chronicle .today, #menuChronicle .today{ color:var(--mint); opacity:.8; display:block; margin-top:.55rem; }
 
 /* ============ short viewports ============ */
 

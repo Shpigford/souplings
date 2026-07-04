@@ -358,6 +358,8 @@ function updateChronicle(){
   }
   ui.chronicle.innerHTML = html;
   ui.chronicle.classList.remove('hidden');
+  const mc = $('menuChronicle');
+  if (mc){ mc.innerHTML = html; mc.classList.remove('hidden'); }
 }
 
 /* ---- share cards ---- */
@@ -1004,7 +1006,7 @@ function update(dt){
     updateBoard();
     updateEditorSafety();
     cacheOwnGenome();
-    if (Game.state === 'title'){ updateConnStatus(); updateChronicle(); }
+    if (Game.state === 'title' || Game.menuOpen){ updateConnStatus(); updateChronicle(); }
   }
 }
 
@@ -1983,6 +1985,7 @@ function openMenu(){
     $('menuName').value = Game.myName || '';
     buildHueRow();
   }
+  updateChronicle();
   menuSafetyFlag();
 }
 function closeMenu(){
