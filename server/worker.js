@@ -5,7 +5,7 @@
    ============================================================ */
 
 import {
-  Cell, World, PARTS, PART_KEYS, FOOD_TYPES, NEWBIE_R, HUE_UNLOCKS, TRAIL_UNLOCKS,
+  Cell, World, PARTS, PART_KEYS, FOOD_TYPES, NEWBIE_R, HUE_UNLOCKS, TRAIL_UNLOCKS, SHAPE_UNLOCKS,
   randomGenome, partCost, randomSpeciesName, isValidSpeciesName, growthNeedFor,
   rand, randInt, pick, clamp, dist, TAU
 } from './sim.gen.mjs';
@@ -129,7 +129,7 @@ export class Soup {
       genome: null, alive: false, ashore: false,
       hue: PLAYER_HUES[this.hueCursor++ % PLAYER_HUES.length],
       input: { tx: 0, ty: 0, th: 0 },
-      lineage: 0, cyst: 0, editorOpen: false, lastDamageAt: 0, trail: 0
+      lineage: 0, cyst: 0, editorOpen: false, lastDamageAt: 0, trail: 0, shape: 0
     };
     this.clients.set(ws, cl);
     this.send(cl, { t: 'welcome', id: cl.id, radius: WORLD_R, hazards: this.world.hazards, world: this.worldStats() });
@@ -149,7 +149,7 @@ export class Soup {
   dropClient(ws){
     const cl = this.clients.get(ws);
     if (!cl) return;
-    this.bankRun(cl);
+    this.persistRun(cl);
     this.clients.delete(ws);
     if (cl.cell){ cl.cell.alive = false; cl.cell.processed = true; cl.cell = null; }
     if (cl.name){
@@ -304,6 +304,7 @@ export class Soup {
       return;
     }
     if (!att.isPlayer && !att.genome.aggro && !bulk) return;
+    if (att.isPlayer && att.iframes > 1.5) att.iframes = 0;   // spawn shields don't snipe
     att.attackCd = 0.55;
     att.biteT = 0.25;
     const dealt = def.takeDamage(dmg, att.x, att.y);
@@ -415,8 +416,9 @@ export class Soup {
     cl.eats = [];
     cl.frenzyUntil = 0;
     cl.spawnAt = Date.now();
-    /* newborn specks get a long grace; armed veterans respawn with less */
-    c.iframes = Object.keys(cl.genome.parts).length ? 4 : 8;
+    /* a real cooldown after death: nobody gets farmed at the spawn.
+       aggression forfeits it early (see tryAttack) */
+    c.iframes = Object.keys(cl.genome.parts).length ? 8 : 10;
     c.r = cl.run.baseR * (1 + 0.16 * clamp(cl.run.growth / cl.run.need, 0, 1));
     c.recalc();
     c.hp = c.stats.maxHp;
@@ -491,6 +493,15 @@ export class Soup {
     });
   }
 
+  /* park the live run in storage so a disconnect (or a deploy) can't
+     erase it — the next join with this token resumes where it left off */
+  persistRun(cl){
+    if (!cl.token || !cl.run || cl.ashore) return;
+    this.state.storage.put('run:' + cl.token, {
+      at: Date.now(), run: cl.run, parts: cl.genome ? cl.genome.parts : {}
+    });
+  }
+
   /* bank a finished run into the dynasty's lifetime ledger — once */
   bankRun(cl){
     if (!cl.run || cl.runBanked) return;
@@ -557,6 +568,9 @@ export class Soup {
         const wTrail = +m.trail;
         const tOpt = TRAIL_UNLOCKS.find(u => u[0] === wTrail);
         if (tOpt && cl.lineage >= tOpt[1]) cl.trail = wTrail;
+        const wShape = +m.shape;
+        const sOpt = SHAPE_UNLOCKS.find(u => u[0] === wShape);
+        if (sOpt && cl.lineage >= sOpt[1]) cl.shape = wShape;
         this.saveProfile(cl);
         this.send(cl, { t: 'renamed', name: cl.name });
         break;
@@ -593,6 +607,40 @@ export class Soup {
         const wantTrail = +m.trail;
         const trailOpt = TRAIL_UNLOCKS.find(u => u[0] === wantTrail);
         if (trailOpt && cl.lineage >= trailOpt[1]) cl.trail = wantTrail;
+        const wantShape = +m.shape;
+        const shapeOpt = SHAPE_UNLOCKS.find(u => u[0] === wantShape);
+        if (shapeOpt && cl.lineage >= shapeOpt[1]) cl.shape = wantShape;
+        /* a run parked by a disconnect? resume it instead of resetting */
+        let resumed = false;
+        if (cl.token){
+          const saved = await this.state.storage.get('run:' + cl.token);
+          if (saved && saved.run){
+            this.state.storage.delete('run:' + cl.token);
+            if (Date.now() - saved.at < 300000){
+              cl.name = name;
+              cl.genome = { parts: saved.parts || {}, hue: cl.hue, carn: false, aggro: false };
+              cl.run = saved.run;
+              cl.ashore = false;
+              cl.runBanked = false;
+              this.spawnPlayerCell(cl);
+              resumed = true;
+            } else {
+              /* expired unclaimed — bank it into the ledger */
+              const life = cl.life = cl.life || { time: 0, dna: 0, kills: 0, runs: 0 };
+              life.time += Math.max(0, Math.round((saved.at - saved.run.joinT) / 1000));
+              life.dna += saved.run.dnaTotal;
+              life.kills += saved.run.kills;
+              life.runs += 1;
+            }
+          }
+        }
+        if (resumed){
+          this.send(cl, { t: 'joined', name: cl.name, lineage: cl.lineage, life: this.lifeView(cl), resumed: 1 });
+          this.saveProfile(cl);
+          this.events.push({ e: 'join', name });
+          console.log(`[resume] ${name} (#${cl.id}) — gen ${cl.run.gen}`);
+          break;
+        }
         /* buddy links: surface beside the friend who invited you */
         let near = null;
         if (typeof m.buddy === 'string' && this.invites.has(m.buddy)){
@@ -660,6 +708,7 @@ export class Soup {
       case 'debug': {
         if (!this.debug || !cl.run) break;
         if (m.dna !== undefined) cl.run.dna = +m.dna | 0;
+        if (m.lineage !== undefined) cl.lineage = +m.lineage | 0;
         if (m.growth !== undefined) cl.run.growth = +m.growth;
         if (m.hp !== undefined && cl.cell){
           cl.cell.hp = +m.hp;
@@ -744,14 +793,22 @@ export class Soup {
       for (const c of world.cells){
         if (!c.alive || c.id === z.owner) continue;
         if (dist(c.x, c.y, z.x, z.y) > z.r + c.r * 0.3) continue;
-        c.vx *= Math.exp(-3 * dt);
-        c.vy *= Math.exp(-3 * dt);
+        c.inked = true;
         if (c.client) c.client.slowed = true;
       }
     }
 
     for (const c of world.cells) if (!c.isPlayer) c.aiUpdate(dt, world);
     for (const c of world.cells) c.physics(dt, world);
+
+    /* ink is thick: anyone caught in it crawls, dashes included */
+    for (const c of world.cells){
+      if (!c.inked) continue;
+      c.inked = false;
+      const cap = c.stats.speed * 0.28;
+      const v = Math.hypot(c.vx, c.vy);
+      if (v > cap){ c.vx *= cap / v; c.vy *= cap / v; }
+    }
 
     /* eating */
     for (const f of world.food){
@@ -760,6 +817,7 @@ export class Soup {
       for (const cl of this.clients.values()){
         const p = cl.cell;
         if (!cl.alive || !p) continue;
+        if (cl.cyst === 2) continue;   // paused in the menu — the soup waits
         const d = dist(p.x, p.y, f.x, f.y);
         if (f.type === 'dna'){
           const pull = p.stats.pickup + 80;
@@ -853,6 +911,7 @@ export class Soup {
         cl.cell = null;
         cl.alive = false;
         cl.ashore = true;
+        if (cl.token) this.state.storage.delete('run:' + cl.token);
         const rs = this.runStats(cl);
         this.stats.ashore++;
         cl.lineage++;
@@ -1000,6 +1059,7 @@ export class Soup {
     world.update(dt);
 
     this.tickN++;
+    if (this.tickN % 300 === 0) for (const cl of this.clients.values()) this.persistRun(cl);
     if (this.tickN % 2 === 0) this.broadcast();
   }
 
@@ -1018,7 +1078,7 @@ export class Soup {
         Math.round(c.genome.hue), partsStr(c.genome.parts),
         (c.genome.carn ? 1 : 0) | (c.genome.aggro ? 2 : 0) | (c.isPlayer ? 4 : 0) | (c.frenzy ? 8 : 0)
       ];
-      if (c.client) row.push(c.client.name, c.client.run.gen, c.client.run.dnaTotal, c.client.lineage, c.client.trail || 0);
+      if (c.client) row.push(c.client.name, c.client.run.gen, c.client.run.dnaTotal, c.client.lineage, c.client.trail || 0, c.client.shape || 0);
       return row;
     });
     const foodArr = world.food.map(f =>

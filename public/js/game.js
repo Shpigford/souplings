@@ -73,7 +73,7 @@ Net.onWelcome = () => {
   if (!Net.joined && (Game.state === 'play' || Game.state === 'editor' || Game.menuOpen)){
     if (Game.state === 'editor') closeEditor();
     if (Game.menuOpen) closeMenu();
-    toast('the current swept you away — your line begins anew', false);
+    Game.sweptHope = true;   // the server may still have our run parked
     Net.join(Game.myName || savedName() || randomSpeciesName());
   }
 };
@@ -81,6 +81,12 @@ Net.onWelcome = () => {
 Net.onJoined = m => {
   Game.myName = m.name;
   Game.spectateId = 0;
+  if (Game.sweptHope){
+    Game.sweptHope = false;
+    toast(m.resumed
+      ? 'a rip in the current — your run continues'
+      : 'the current swept you away — your line begins anew', false);
+  }
   try {
     localStorage.setItem('soup_name', m.name);
     localStorage.setItem('soup_lineage', String(m.lineage || 0));
@@ -113,6 +119,7 @@ function dynStrip(stars, facts){
 
 Net.onDead = m => {
   if (Game.state === 'editor') closeEditor();
+  if (Game.menuOpen) closeMenu();
   Game.state = 'dead';
   AudioSys.death();
   const s = m.stats;
@@ -157,6 +164,7 @@ Net.onDead = m => {
 
 Net.onAshore = m => {
   if (Game.state === 'editor') closeEditor();
+  if (Game.menuOpen) closeMenu();
   Game.state = 'win';
   AudioSys.win();
   const s = m.stats;
@@ -649,7 +657,7 @@ function sample(){
       p.partsStr = e1[10];
       p.statsR = p.r;
     }
-    if (e1.length > 12){ p.name = e1[12]; p.gen = e1[13]; p.dnaTotal = e1[14]; p.lineage = e1[15] || 0; p.trail = e1[16] || 0; }
+    if (e1.length > 12){ p.name = e1[12]; p.gen = e1[13]; p.dnaTotal = e1[14]; p.lineage = e1[15] || 0; p.trail = e1[16] || 0; p.shape = e1[17] || 0; }
     live.push(p);
     if (p.id === Net.myId) Game.mePuppet = p;
   }
@@ -1653,6 +1661,30 @@ function buildTrailRow(){
       row.appendChild(chip);
     }
   }
+  buildShapeRow();
+}
+
+function buildShapeRow(){
+  const lin = cachedLineage();
+  let sel = 0;
+  try { sel = +localStorage.getItem('soup_shape') || 0; } catch (e) {}
+  for (const id of ['shapeRow', 'menuShapeRow']){
+    const row = $(id);
+    if (!row) continue;
+    row.innerHTML = '';
+    for (const [idx, req] of SHAPE_UNLOCKS){
+      const chip = document.createElement('button');
+      chip.className = 'trailChip mono' + (lin < req ? ' locked' : '') + (idx === sel ? ' sel' : '');
+      chip.textContent = SHAPE_NAMES[idx] + (lin < req ? ` ★${req}` : '');
+      chip.title = lin < req ? `form unlocks at dynasty ★${req}` : 'body form';
+      chip.addEventListener('click', () => {
+        if (lin < req){ toast(`that form unlocks at dynasty ${'★'.repeat(req)}`, false); return; }
+        try { localStorage.setItem('soup_shape', String(idx)); } catch (e) {}
+        buildHueRow();
+      });
+      row.appendChild(chip);
+    }
+  }
 }
 
 /* personal bests, kept on this device */
@@ -1686,12 +1718,13 @@ function closeMenu(){
 }
 $('menuRoll').addEventListener('click', () => { $('menuName').value = randomSpeciesName(); });
 $('identApply').addEventListener('click', () => {
-  let hue = 158, trail = 0;
+  let hue = 158, trail = 0, shape = 0;
   try {
     hue = +localStorage.getItem('soup_hue') || 158;
     trail = +localStorage.getItem('soup_trail') || 0;
+    shape = +localStorage.getItem('soup_shape') || 0;
   } catch (e) {}
-  Net.ident($('menuName').value.trim(), hue, trail);
+  Net.ident($('menuName').value.trim(), hue, trail, shape);
 });
 $('aboutBtn').addEventListener('click', openMenu);
 $('aboutCloseBtn').addEventListener('click', closeMenu);

@@ -110,7 +110,7 @@ function randomGenome(budget){
     parts,
     carn,
     hue: carn ? rand(-25, 30) : pick([rand(45, 110), rand(170, 230), rand(255, 300)]),
-    aggro: carn && Math.random() < 0.85
+    aggro: carn && Math.random() < (budget >= 5 ? 0.95 : 0.85)
   };
 }
 
@@ -170,3 +170,7 @@ const HUE_UNLOCKS = [[158, 0], [205, 0], [95, 1], [45, 2], [262, 3], [305, 4], [
 /* wake trails: cosmetic particle wakes, earned by emergences */
 const TRAIL_NAMES = ['plain', 'bubbles', 'gleam', 'murk'];
 const TRAIL_UNLOCKS = [[0, 0], [1, 1], [2, 3], [3, 5]];   // [trail index, emergences required]
+
+/* body silhouettes: how your membrane wobbles, earned by emergences */
+const SHAPE_NAMES = ['round', 'comet', 'thorn', 'amoeba'];
+const SHAPE_UNLOCKS = [[0, 0], [1, 2], [2, 4], [3, 6]];   // [shape index, emergences required]

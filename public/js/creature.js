@@ -122,7 +122,9 @@ class Cell {
         if (!tgt || !tgt.alive){ th.mode = 'wander'; break; }
         /* predators are lazy: a chase that drags on isn't worth it */
         th.huntT = (th.huntT || 0) + dt;
-        if (th.huntT > 4.5){
+        /* big prey is worth the chase — late-game waters hunt harder */
+        const patience = tgt.isPlayer && tgt.r > 60 ? 8 : 4.5;
+        if (th.huntT > patience){
           th.black = tgt;
           th.blackT = 9;
           th.huntT = 0;
@@ -252,13 +254,22 @@ function drawCreature(ctx, c, t){
   const memLvl = lvl('membrane');
 
   /* ---- membrane blob points ---- */
+  const shape = c.shape || 0;
   const N = 16, pts = [];
   for (let i = 0; i < N; i++){
     const a = i / N * TAU;
-    const rr = r * (1
+    let rr = r * (1
       + 0.05 * Math.sin(3 * a + t * 2.1 + seed)
       + 0.035 * Math.sin(5 * a - t * 1.6 + seed * 2));
-    pts.push([Math.cos(a) * rr * (1 + squash), Math.sin(a) * rr * (1 - squash * 0.55)]);
+    if (shape === 2) rr = r * (1
+      + 0.13 * Math.sin(7 * a + t * 1.4 + seed)
+      + 0.03 * Math.sin(3 * a + t * 2.1 + seed));
+    else if (shape === 3) rr = r * (1
+      + 0.16 * Math.sin(2 * a + t * 0.9 + seed)
+      + 0.09 * Math.sin(3 * a - t * 1.4 + seed * 2));
+    let px = Math.cos(a) * rr * (1 + squash), py = Math.sin(a) * rr * (1 - squash * 0.55);
+    if (shape === 1){ px *= 1.16 + 0.1 * Math.cos(a); py *= 0.85; }
+    pts.push([px, py]);
   }
 
   /* ---- flagella (behind body) ---- */
