@@ -166,7 +166,12 @@ class World {
       let ok = true;
       for (const h of this.hazards) if (dist(x, y, h.x, h.y) < 500){ ok = false; break; }
       if (!ok) continue;
-      this.hazards.push({ x, y, r: refR * rand(1.1, 1.7), rot: rand(0, TAU), spin: rand(-0.3, 0.3), seed: rand(0, 100) });
+      this.hazards.push({
+        x, y, ax: x, ay: y,
+        orbitR: rand(90, 240), w: rand(0.06, 0.14) * (Math.random() < 0.5 ? -1 : 1),
+        phase: rand(0, TAU),
+        r: refR * rand(1.1, 1.7), rot: rand(0, TAU), spin: rand(-0.3, 0.3), seed: rand(0, 100)
+      });
       return;
     }
   }
@@ -187,14 +192,15 @@ class World {
   }
 
   inkCloud(x, y){
-    for (let i = 0; i < 22; i++){
-      const a = rand(0, TAU), s = rand(20, 120);
+    /* a real curtain of night: big, lingering, matches the server slow-zone */
+    for (let i = 0; i < 38; i++){
+      const a = rand(0, TAU), s = rand(15, 150);
       this.particles.push({
         x, y,
         vx: Math.cos(a) * s, vy: Math.sin(a) * s,
-        life: rand(1.2, 2.4), maxLife: 2.4,
-        r: rand(8, 26),
-        color: 'rgba(6,10,18,0.88)', rise: 0, dark: true
+        life: rand(2.6, 4.2), maxLife: 4.2,
+        r: rand(16, 44),
+        color: 'rgba(6,10,18,0.9)', rise: 0, dark: true
       });
     }
   }
@@ -233,6 +239,16 @@ class World {
       p.life -= dt;
     }
     this.particles = this.particles.filter(p => p.life > 0);
+  }
+
+  /* urchins patrol slow, readable circles — same math on both ends of
+     the wire, driven by the shared clock, so no sync traffic is needed */
+  updateHazardOrbits(nowSec){
+    for (const h of this.hazards){
+      if (h.orbitR === undefined) continue;
+      h.x = h.ax + Math.cos(h.phase + nowSec * h.w) * h.orbitR;
+      h.y = h.ay + Math.sin(h.phase + nowSec * h.w) * h.orbitR;
+    }
   }
 
   /* -------------------- drawing -------------------- */
@@ -390,6 +406,50 @@ class World {
       ctx.fillStyle = `rgba(255,90,120,${0.5 + 0.3 * Math.sin(t * 2.5 + h.seed)})`;
       ctx.beginPath();
       ctx.arc(0, 0, h.r * 0.2, 0, TAU);
+      ctx.fill();
+      ctx.restore();
+    }
+  }
+
+  drawVaults(ctx, t, vaults){
+    for (const v of vaults || []){
+      const frac = v.maxHp ? v.hp / v.maxHp : 1;
+      const pulse = 0.75 + 0.25 * Math.sin(t * 3 + v.id);
+      drawGlow(ctx, v.x, v.y, v.r * 5 * pulse, 'hsla(48,100%,60%,0.8)', 0.3 + 0.25 * (1 - frac));
+      ctx.save();
+      ctx.translate(v.x, v.y);
+      ctx.rotate(v.id % 6);
+      /* crystalline shell */
+      ctx.beginPath();
+      for (let i = 0; i < 6; i++){
+        const a = i / 6 * TAU;
+        const rr = v.r * (1 + 0.06 * Math.sin(t * 2 + i * 2 + v.id));
+        i ? ctx.lineTo(Math.cos(a) * rr, Math.sin(a) * rr) : ctx.moveTo(Math.cos(a) * rr, Math.sin(a) * rr);
+      }
+      ctx.closePath();
+      ctx.fillStyle = 'rgba(20,26,20,0.85)';
+      ctx.fill();
+      ctx.strokeStyle = `rgba(255,214,107,${0.5 + 0.4 * (1 - frac)})`;
+      ctx.lineWidth = Math.max(2, v.r * 0.09);
+      ctx.stroke();
+      /* cracks spread as it weakens */
+      const cracks = Math.floor((1 - frac) * 6);
+      if (cracks > 0){
+        ctx.strokeStyle = 'rgba(255,232,150,0.85)';
+        ctx.lineWidth = Math.max(1, v.r * 0.045);
+        for (let i = 0; i < cracks; i++){
+          const a = (v.id + i * 2.4) % TAU;
+          ctx.beginPath();
+          ctx.moveTo(Math.cos(a) * v.r * 0.2, Math.sin(a) * v.r * 0.2);
+          ctx.lineTo(Math.cos(a + 0.35) * v.r * 0.65, Math.sin(a + 0.35) * v.r * 0.65);
+          ctx.lineTo(Math.cos(a + 0.2) * v.r * 0.98, Math.sin(a + 0.2) * v.r * 0.98);
+          ctx.stroke();
+        }
+      }
+      /* the hoard inside */
+      ctx.fillStyle = `rgba(255,214,107,${0.55 + 0.35 * pulse})`;
+      ctx.beginPath();
+      ctx.arc(0, 0, v.r * 0.3, 0, TAU);
       ctx.fill();
       ctx.restore();
     }

@@ -447,6 +447,11 @@ function predictSelf(dt){
   const k = st.steerK * (P.dashT > 0 ? 2.2 : 1);
   P.vx = damp(P.vx, d > 1 ? dx / d * sp : 0, k, dt);
   P.vy = damp(P.vy, d > 1 ? dy / d * sp : 0, k, dt);
+  if (Net.me.slow){
+    /* wading through someone's ink — the server is sludging us too */
+    P.vx *= Math.exp(-3 * dt);
+    P.vy *= Math.exp(-3 * dt);
+  }
   P.x += P.vx * dt;
   P.y += P.vy * dt;
 
@@ -605,6 +610,10 @@ function sample(){
   }
   Game.world.food = foodLive;
 
+  /* vaults: few, static — taken straight from the newest snapshot */
+  Game.world.vaults = (s1.vaults || []).map(v =>
+    ({ id: v[0], x: v[1], y: v[2], r: v[3], hp: v[4], maxHp: v[5], tier: v[6] }));
+
   if (Game.foodCache.size > s1.food.length){
     const ids = foodMapOf(s1);
     for (const id of [...Game.foodCache.keys()]) if (!ids.has(id)) Game.foodCache.delete(id);
@@ -700,6 +709,25 @@ function processEvents(){
         }
         break;
       }
+      case 'vaultSpawn':
+        toast(`a dna vault crusts over in the deep ${'★'.repeat(ev.tier || 1)}`, true);
+        break;
+      case 'vhit': {
+        world.burst(ev.x, ev.y, 'rgba(255,232,150,0.9)', 5, 110, 0.35, 2);
+        if (ev.who === Net.myId && AudioSys.ctx) AudioSys.crack();
+        break;
+      }
+      case 'vbreak': {
+        world.burst(ev.x, ev.y, 'rgba(255,214,107,0.95)', 30, 260, 1.1, 3.5);
+        if (ev.id === Net.myId){
+          showBanner('CRACKED', `+${ev.cut} DNA and the hoard spills out`);
+          AudioSys.gold();
+          Game.punch = 0.9;
+        } else if (ev.name){
+          toast(`${ev.name} cracked a dna vault`, true);
+        }
+        break;
+      }
       case 'goldSpawn':
         toast('a golden mote glimmers somewhere in the soup', true);
         if (AudioSys.ctx) AudioSys.gold();
@@ -774,6 +802,9 @@ function update(dt){
       }
     }
     Game.world.update(dt);   // particles + hazard spin (food is overwritten by snapshots)
+    if (Game.clockOff !== undefined){
+      Game.world.updateHazardOrbits((performance.now() - Game.clockOff) / 1000);
+    }
 
     Game.bubbleT -= dt;
     if (Game.bubbleT <= 0){
@@ -1051,7 +1082,12 @@ function killFeedLine(text, gold){
   setTimeout(() => el.remove(), 6200);
 }
 
+let lastToastMsg = '', lastToastAt = 0;
 function toast(msg, gold){
+  /* rapid identical clicks should not stack four copies of the same nudge */
+  const now = performance.now();
+  if (msg === lastToastMsg && now - lastToastAt < 1500) return;
+  lastToastMsg = msg; lastToastAt = now;
   const el = document.createElement('div');
   el.className = 'toast' + (gold ? ' gold' : '');
   el.textContent = msg;
@@ -1333,6 +1369,7 @@ function render(){
 
     world.drawEdge(ctx, t);
     world.drawHazards(ctx, t);
+    world.drawVaults(ctx, t, world.vaults);
     world.drawFood(ctx, t);
 
     const sorted = [...world.cells].sort((a, b) => a.r - b.r);
@@ -1398,6 +1435,29 @@ function render(){
     rg.addColorStop(1, `rgba(255,50,35,${clamp(a, 0, 0.5)})`);
     ctx.fillStyle = rg;
     ctx.fillRect(0, 0, W, H);
+  }
+
+  /* vaults call from beyond the screen edge too */
+  if (Game.world && Game.world.vaults){
+    const z3 = Game.cam.zoom;
+    for (const v of Game.world.vaults){
+      const sx3 = (v.x - Game.cam.x) * z3 + W / 2;
+      const sy3 = (v.y - Game.cam.y) * z3 + H / 2;
+      if (sx3 > -30 && sx3 < W + 30 && sy3 > -30 && sy3 < H + 30) continue;
+      const m3 = 34;
+      const cx3 = clamp(sx3, m3, W - m3), cy3 = clamp(sy3, m3, H - m3);
+      ctx.save();
+      ctx.translate(cx3, cy3);
+      ctx.rotate(Math.PI / 4);
+      ctx.strokeStyle = 'rgba(255,214,107,0.85)';
+      ctx.lineWidth = 2.5;
+      ctx.strokeRect(-6, -6, 12, 12);
+      ctx.restore();
+      ctx.font = '10px "Fragment Mono", monospace';
+      ctx.textAlign = 'center';
+      ctx.fillStyle = 'rgba(255,214,107,0.75)';
+      ctx.fillText('dna vault ' + '★'.repeat(v.tier), clamp(cx3, 80, W - 80), cy3 + (sy3 > cy3 ? -14 : 24));
+    }
   }
 
   /* the golden mote calls from beyond the screen edge */

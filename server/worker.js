@@ -23,6 +23,21 @@ export default {
       }
       return env.SOUP.get(env.SOUP.idFromName('the-one-soup')).fetch(req);
     }
+    if (url.pathname === '/health'){
+      /* DO vitals with a hard timeout: if this times out, the soup is wedged */
+      try {
+        const vitals = env.SOUP.get(env.SOUP.idFromName('the-one-soup')).fetch(new Request('https://soup/health'));
+        const res = await Promise.race([
+          vitals,
+          new Promise((_, rej) => setTimeout(() => rej(new Error('DO timeout')), 3000))
+        ]);
+        return res;
+      } catch (e) {
+        return new Response(JSON.stringify({ ok: false, error: String(e) }), {
+          status: 503, headers: { 'Content-Type': 'application/json' }
+        });
+      }
+    }
     if (url.pathname === '/' || url.pathname === '/index.html'){
       /* stamp the real origin into og: meta tags so share links unfurl */
       const res = await env.ASSETS.fetch(req);
@@ -51,6 +66,9 @@ export class Soup {
     this.stats = { joins: 0, deaths: 0, ashore: 0, pvp: 0, fastest: null, deadliest: null, dynasty: null };
     this.daily = null;
     this.goldT = 60 + Math.random() * 60;
+    this.vaultT = 45 + Math.random() * 45;
+    this.vaults = [];
+    this.inkZones = [];
     this.invites = new Map();
     state.blockConcurrencyWhile(async () => {
       const saved = await state.storage.get('stats');
@@ -83,7 +101,19 @@ export class Soup {
 
   /* -------------------- connections -------------------- */
 
-  fetch(){
+  fetch(req){
+    if (req && new URL(req.url).pathname === '/health'){
+      return new Response(JSON.stringify({
+        ok: true,
+        tickN: this.tickN,
+        lastTickAt: this.lastTickAt || 0,
+        tickAgeMs: this.lastTickAt ? Date.now() - this.lastTickAt : -1,
+        clients: this.clients.size,
+        cells: this.world.cells.length,
+        food: this.world.food.length,
+        timer: this.timer != null
+      }), { headers: { 'Content-Type': 'application/json' } });
+    }
     const pair = new WebSocketPair();
     const [clientEnd, serverEnd] = Object.values(pair);
     this.accept(serverEnd);
@@ -154,6 +184,20 @@ export class Soup {
     }
   }
 
+  spawnVault(){
+    const tier = randInt(1, 3);
+    const a = rand(0, TAU), d = WORLD_R * rand(0.4, 0.85);
+    this.vaults.push({
+      id: this.nextId++,
+      x: Math.cos(a) * d, y: Math.sin(a) * d,
+      r: 24 + tier * 8,
+      hp: [0, 80, 200, 410][tier],
+      maxHp: [0, 80, 200, 410][tier],
+      tier, age: 0, broken: false
+    });
+    this.events.push({ e: 'vaultSpawn', tier });
+  }
+
   spawnGoldenMote(){
     const a = rand(0, TAU), d = WORLD_R * rand(0.4, 0.75);
     const f = this.world.spawnFood('gold', Math.cos(a) * d, Math.sin(a) * d);
@@ -209,11 +253,13 @@ export class Soup {
       const run = cl.run, st = cell.stats;
       /* feeding frenzy: six meals in eight seconds ignites you */
       const now = Date.now();
-      cl.eats = (cl.eats || []).filter(t2 => now - t2 < 8000);
+      cl.eats = (cl.eats || []).filter(t2 => now - t2 < 7000);
       cl.eats.push(now);
       if (cl.frenzyUntil > now){
         cl.frenzyUntil = now + 3000;   // keep eating, keep burning
-      } else if (cl.eats.length >= 6){
+      } else if (cl.eats.length >= 8 && now - (cl.spawnAt || 0) > 10000){
+        /* eight meals in seven seconds, and never in the first breaths
+           after spawning (spawn points sit in a pile of crumbs) */
         cl.frenzyUntil = now + 5000;
         this.events.push({ e: 'frenzy', id: cl.id });
       }
@@ -234,9 +280,17 @@ export class Soup {
     if (att.attackCd > 0 || !att.alive || !def.alive) return;
     /* the wild ignores newborn players entirely — snake.io rule:
        early death should only ever come from your own choices */
-    if (!att.isPlayer && def.isPlayer && def.r < NEWBIE_R) return;
+    if (!att.isPlayer && def.isPlayer && def.r < NEWBIE_R){
+      if (def.client && Date.now() - (def.client.lastGuardHint || 0) > 30000){
+        def.client.lastGuardHint = Date.now();
+        this.send(def.client, { t: 'hint', key: 'guarded', msg: 'the wild cannot be bothered with something your size — danger begins at Gen III' });
+      }
+      return;
+    }
     const armed = att.stats.dmg - 3;
-    const bulk = att.r > def.r * 1.15 ? 2 + att.r * 0.05 : 0;
+    /* body-checks scale with how badly you are outweighed — a giant
+       shouldering you should hurt, not tickle */
+    const bulk = att.r > def.r * 1.15 ? Math.min(22, 2 + (att.r / def.r - 1) * 12) : 0;
     const dmg = armed + bulk;
     if (dmg <= 0){
       /* a player harmlessly bonking something deserves an explanation, once in a while */
@@ -354,6 +408,9 @@ export class Soup {
     const c = new Cell({ x, y, r: cl.run.baseR, genome: cl.genome, isPlayer: true });
     c.id = cl.id;
     c.client = cl;
+    cl.eats = [];
+    cl.frenzyUntil = 0;
+    cl.spawnAt = Date.now();
     /* newborn specks get a long grace; armed veterans respawn with less */
     c.iframes = Object.keys(cl.genome.parts).length ? 4 : 8;
     c.r = cl.run.baseR * (1 + 0.16 * clamp(cl.run.growth / cl.run.need, 0, 1));
@@ -523,6 +580,7 @@ export class Soup {
           /* ink sac: the dash vents a blinding cloud — wild hunters lose the trail */
           if (cl.genome.parts.ink){
             this.events.push({ e: 'ink', x: Math.round(cl.cell.x), y: Math.round(cl.cell.y) });
+            this.inkZones.push({ x: cl.cell.x, y: cl.cell.y, r: 180, until: Date.now() + 4000, owner: cl.id });
             for (const c of this.world.cells){
               if (c.isPlayer || !c.alive || !c.think) continue;
               if (c.think.mode === 'hunt' && c.think.target === cl.cell){
@@ -571,6 +629,7 @@ export class Soup {
           this.events.push({ e: 'frenzy', id: cl.id });
         }
         if (m.gold) this.spawnGoldenMote();
+        if (m.vault) this.spawnVault();
         if (Array.isArray(m.tp) && cl.cell){
           cl.cell.x = +m.tp[0] || 0;
           cl.cell.y = +m.tp[1] || 0;
@@ -585,8 +644,9 @@ export class Soup {
 
   tick(){
     /* a sim bug must never crash-loop the Durable Object */
+    this.lastTickAt = Date.now();
     try { this.simulate(); }
-    catch (e) { console.error('tick error', e); }
+    catch (e) { console.error('tick error', e && e.stack || e); }
   }
 
   simulate(){
@@ -608,6 +668,22 @@ export class Soup {
       cl.cell.steer(cl.input.tx, cl.input.ty, dt, cl.input.th);
     }
 
+    world.updateHazardOrbits(Date.now() / 1000);
+
+    /* ink zones: anything but the venter wading through gets sludged */
+    const zoneNow = Date.now();
+    this.inkZones = this.inkZones.filter(z => z.until > zoneNow);
+    for (const cl of this.clients.values()) cl.slowed = false;
+    for (const z of this.inkZones){
+      for (const c of world.cells){
+        if (!c.alive || c.id === z.owner) continue;
+        if (dist(c.x, c.y, z.x, z.y) > z.r + c.r * 0.3) continue;
+        c.vx *= Math.exp(-3 * dt);
+        c.vy *= Math.exp(-3 * dt);
+        if (c.client) c.client.slowed = true;
+      }
+    }
+
     for (const c of world.cells) if (!c.isPlayer) c.aiUpdate(dt, world);
     for (const c of world.cells) c.physics(dt, world);
 
@@ -625,6 +701,14 @@ export class Soup {
             const sp = 260 * (1 - d / pull) + 60;
             f.vx += (p.x - f.x) / d * sp * dt * 4;
             f.vy += (p.y - f.y) / d * sp * dt * 4;
+          }
+        } else if (p.stats.lure > 0 && f.type !== 'gold'){
+          /* the biolume gland actually lures now — it never did before */
+          const lr = p.stats.lure + p.r;
+          if (d < lr && d > 1){
+            const sp = 110 * (1 - d / lr) + 25;
+            f.vx += (p.x - f.x) / d * sp * dt * 3;
+            f.vy += (p.y - f.y) / d * sp * dt * 3;
           }
         }
         if (d < p.r * 3) p.mouthT = Math.max(p.mouthT, 0.2);
@@ -765,6 +849,42 @@ export class Soup {
       if (wd2 > WORLD_R * 0.9){ f.vx -= f.x / wd2 * 300 * dt; f.vy -= f.y / wd2 * 300 * dt; }
     }
 
+    /* DNA vaults: crusted hoards that must be cracked open. Tier sets
+       toughness and payout; max damage opens the biggest in ~5 seconds. */
+    if (players.length > 0){
+      this.vaultT -= dt;
+      if (this.vaultT <= 0 && this.vaults.length < 2){
+        this.vaultT = 70 + Math.random() * 50;
+        this.spawnVault();
+      }
+    }
+    for (const v of this.vaults){
+      v.age += dt;
+      for (const cl2 of players){
+        const p2 = cl2.cell;
+        if (dist(p2.x, p2.y, v.x, v.y) > p2.r + v.r * 0.9) continue;
+        if (p2.attackCd > 0) continue;
+        p2.attackCd = 0.55;
+        p2.biteT = 0.25;
+        v.hp -= p2.stats.dmg;
+        this.events.push({ e: 'vhit', id: v.id, x: Math.round(v.x), y: Math.round(v.y), who: cl2.id });
+        if (v.hp <= 0 && !v.broken){
+          v.broken = true;
+          /* the hoard: an orb shower anyone can loot, plus a cut for the cracker */
+          const orbs = 4 + v.tier * 4;
+          for (let i = 0; i < orbs; i++){
+            const f = world.spawnFood('dna', v.x + rand(-30, 30), v.y + rand(-30, 30));
+            f.vx = rand(-140, 140); f.vy = rand(-140, 140);
+          }
+          const cut = 10 + v.tier * 15;
+          cl2.run.dna += cut;
+          cl2.run.dnaTotal += cut;
+          this.events.push({ e: 'vbreak', x: Math.round(v.x), y: Math.round(v.y), tier: v.tier, name: cl2.name, id: cl2.id, cut });
+        }
+      }
+    }
+    this.vaults = this.vaults.filter(v => !v.broken && v.age < 120);
+
     /* wildlife backfills the soup when humans are scarce; as real players
        arrive, the wild thins out and the humans ARE the ecosystem */
     const targetFauna = Math.max(10, 22 - 5 * Math.max(0, players.length - 1));
@@ -836,9 +956,11 @@ export class Soup {
     });
     const foodArr = world.food.map(f =>
       [f.id, FOOD_TYPES.indexOf(f.type), Math.round(f.x), Math.round(f.y), Math.round(f.r)]);
+    const vaultArr = this.vaults.map(v =>
+      [v.id, Math.round(v.x), Math.round(v.y), Math.round(v.r), Math.ceil(v.hp), v.maxHp, v.tier]);
 
     const snapObj = {
-      t: 'snap', ts: Date.now(), cells: cellsArr, food: foodArr, ev: this.events.splice(0)
+      t: 'snap', ts: Date.now(), cells: cellsArr, food: foodArr, vaults: vaultArr, ev: this.events.splice(0)
     };
     /* piggyback the chronicle every ~2s */
     if (this.tickN % 30 === 0) snapObj.world = this.worldStats();
@@ -851,7 +973,8 @@ export class Soup {
           cl.ws.send(JSON.stringify({
             t: 'you', dna: cl.run.dna, growth: +cl.run.growth.toFixed(1),
             need: cl.run.need, gen: cl.run.gen, cyst: cl.cyst || 0,
-            frenzy: cl.frenzyUntil > Date.now() ? 1 : 0
+            frenzy: cl.frenzyUntil > Date.now() ? 1 : 0,
+            slow: cl.slowed ? 1 : 0
           }));
         }
       } catch (e) { /* dropped mid-send; close handler cleans up */ }

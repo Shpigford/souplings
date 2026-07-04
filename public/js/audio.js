@@ -92,6 +92,7 @@ const AudioSys = {
   devour(){  this.noiseBurst(0.25, 0.18, 240); this.tone(70, 0.32, 'triangle', 0.2, 44); },
   heart(){   this.tone(52, 0.1, 'sine', 0.24, 40); setTimeout(() => this.tone(48, 0.12, 'sine', 0.2, 36), 130); },
   gold(){    [880, 1175, 1568].forEach((f, i) => setTimeout(() => this.tone(f, 0.18, 'sine', 0.1), i * 70)); },
+  crack(){   this.noiseBurst(0.08, 0.1, 700); this.tone(180, 0.07, 'square', 0.07, 120); },
   buy(){     [440, 554, 659].forEach((f, i) => setTimeout(() => this.tone(f, 0.16, 'triangle', 0.11), i * 55)); },
   molt(){    [330, 415, 494, 659, 880].forEach((f, i) => setTimeout(() => this.tone(f, 0.3, 'sine', 0.12), i * 90)); },
   death(){   [392, 311, 233, 155].forEach((f, i) => setTimeout(() => this.tone(f, 0.5, 'triangle', 0.12), i * 160)); },
