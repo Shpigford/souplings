@@ -355,19 +355,36 @@ export class Soup {
       f.vx = rand(-60, 60); f.vy = rand(-60, 60);
     }
     if (killer && killer.client){
-      killer.client.run.kills++;
+      const kcl = killer.client;
+      kcl.run.kills++;
+      /* the kill itself feeds you: growth, a quarter heal, and blood
+         frenzy — hunting is a progression path, not a side quest */
+      if (killer.alive && kcl.run){
+        const g = Math.round(c.r * (c.client ? 1.6 : 0.9));
+        kcl.run.growth += g;
+        killer.hp = Math.min(killer.stats.maxHp, killer.hp + killer.stats.maxHp * 0.25);
+        kcl.frenzyUntil = Math.max(kcl.frenzyUntil || 0, Date.now() + 6000);
+        this.events.push({ e: 'frenzy', id: kcl.id });
+        let trophy = 0;
+        if (c.client && c.client.run){
+          trophy = 15 + 10 * c.client.run.gen;
+          kcl.run.dna += trophy;
+          kcl.run.dnaTotal += trophy;
+        }
+        this.send(kcl, { t: 'toast', msg: `the kill feeds you — +${g} growth${trophy ? ` · +${trophy} DNA` : ''} · blood frenzy` });
+      }
       if (c.client){
         this.stats.pvp++;
         this.saveStats();
         /* vengeance: killing your nemesis pays, loudly */
-        if (killer.client.nemesisId === c.client.id){
-          killer.client.run.dna += 40;
-          killer.client.run.dnaTotal += 40;
-          killer.client.nemesisId = 0;
-          this.events.push({ e: 'vengeance', a: killer.client.name, t: c.client.name, id: killer.client.id });
+        if (kcl.nemesisId === c.client.id){
+          kcl.run.dna += 40;
+          kcl.run.dnaTotal += 40;
+          kcl.nemesisId = 0;
+          this.events.push({ e: 'vengeance', a: kcl.name, t: c.client.name, id: kcl.id });
         }
-        c.client.nemesisId = killer.client.id;
-        c.client.nemesisName = killer.client.name;
+        c.client.nemesisId = kcl.id;
+        c.client.nemesisName = kcl.name;
       }
     }
     if (c.client){
