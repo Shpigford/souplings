@@ -108,6 +108,8 @@ export class Soup {
         tickN: this.tickN,
         lastTickAt: this.lastTickAt || 0,
         tickAgeMs: this.lastTickAt ? Date.now() - this.lastTickAt : -1,
+        tickErrors: this.tickErrors || 0,
+        pendingEvents: this.events.length,
         clients: this.clients.size,
         cells: this.world.cells.length,
         food: this.world.food.length,
@@ -643,10 +645,31 @@ export class Soup {
   /* -------------------- the tick -------------------- */
 
   tick(){
-    /* a sim bug must never crash-loop the Durable Object */
+    /* a sim bug must never crash-loop OR silently freeze the Durable Object */
     this.lastTickAt = Date.now();
-    try { this.simulate(); }
-    catch (e) { console.error('tick error', e && e.stack || e); }
+    try {
+      this.simulate();
+      this.tickErrors = 0;
+    } catch (e) {
+      this.tickErrors = (this.tickErrors || 0) + 1;
+      console.error('tick error #' + this.tickErrors, e && e.stack || e);
+      /* backpressure: a broken simulate never broadcasts, so events pile up */
+      if (this.events.length > 400) this.events.length = 0;
+      if (this.tickErrors >= 90){
+        /* three seconds of continuous failure: assume poisoned world state.
+           Reseed the wildlife and keep the players — a rough molt beats a
+           frozen soup. The chronicle and profiles live in storage, untouched. */
+        console.error('SELF-HEAL: reseeding poisoned world');
+        this.world = new World(WORLD_R);
+        this.vaults = [];
+        this.inkZones = [];
+        this.seedWorld();
+        for (const cl of this.clients.values()){
+          if (cl.run && cl.alive){ cl.cell = null; this.spawnPlayerCell(cl); }
+        }
+        this.tickErrors = 0;
+      }
+    }
   }
 
   simulate(){
