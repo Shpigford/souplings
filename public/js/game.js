@@ -1115,7 +1115,7 @@ function updateBoard(){
   const starsFor = n => !n ? '' : (n > 3 ? ` ★×${n}` : ' ' + '★'.repeat(n));
   ui.boardList.innerHTML = players.slice(0, 10).map(p =>
     `<li class="${p.id === Net.myId ? 'me' : ''}">` +
-    `<span class="bn">${esc(p.name)}<span class="bstar">${starsFor(p.lineage)}</span></span>` +
+    `<span class="bn" style="color:hsl(${Math.round(p.genome.hue)},75%,66%)">${esc(p.name)}<span class="bstar">${starsFor(p.lineage)}</span></span>` +
     `<span class="bg">Gen ${ROMAN[p.gen - 1] || 'I'} · <span class="bdna">${p.dnaTotal || 0}</span></span></li>`
   ).join('');
   const myIdx = players.findIndex(p => p.id === Net.myId);
