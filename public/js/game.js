@@ -83,10 +83,11 @@ Net.onJoined = m => {
   Game.spectateId = 0;
   if (Game.sweptHope){
     Game.sweptHope = false;
-    toast(m.resumed
-      ? 'a rip in the current — your run continues'
-      : 'the current swept you away — your line begins anew', false);
+    Game.camSnap = true;   // don't slew across the world to the new spawn
+    if (m.resumed) showBanner('the current parts', 'your run continues');
+    else toast('the current swept you away — your line begins anew', false);
   }
+  $('currentShift').classList.add('hidden');
   try {
     localStorage.setItem('soup_name', m.name);
     localStorage.setItem('soup_lineage', String(m.lineage || 0));
@@ -216,6 +217,8 @@ Net.onBuyok = m => {
 Net.onStatus = state => {
   Game.connState = state;
   updateConnStatus();
+  const midRun = Game.state === 'play' || Game.state === 'editor' || Game.menuOpen;
+  $('currentShift').classList.toggle('hidden', !(state === 'lost' && midRun));
 };
 
 /* tutorial nudges: each hint key is shown once ever per device */
@@ -978,6 +981,11 @@ function updateCamera(dt){
     tz = H / 1500;
   }
   Game.punch = damp(Game.punch || 1, 1, 5, dt);
+  if (Game.camSnap && meP && Net.joined){
+    Game.camSnap = false;
+    Game.cam.x = tx; Game.cam.y = ty; Game.cam.zoom = tz;
+    return;
+  }
   Game.cam.x = damp(Game.cam.x, tx, 3.5, dt);
   Game.cam.y = damp(Game.cam.y, ty, 3.5, dt);
   Game.cam.zoom = damp(Game.cam.zoom, tz * Game.punch, 2.2, dt);
