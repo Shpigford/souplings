@@ -1176,13 +1176,21 @@ function buildShareCard(kind, statsLine){
     };
     drawCreature(g, mock, 2.3);
     g.textAlign = 'left';
-    g.font = 'italic 900 84px Fraunces, Georgia, serif';
-    g.fillStyle = kind === 'win' ? '#ffd66b' : kind === 'saga' ? '#7dffd4' : '#ff7a5c';
-    g.fillText(kind === 'win' ? 'EMERGENCE' : kind === 'saga' ? 'THE SAGA' : 'REABSORBED', 560, 260);
-    g.font = 'italic 600 34px Fraunces, Georgia, serif';
-    g.fillStyle = '#eafff5';
+    if (kind === 'specimen'){
+      g.font = 'italic 900 56px Fraunces, Georgia, serif';
+      g.fillStyle = '#eafff5';
+      g.fillText(Game.myName || savedName() || 'a speck', 560, 250);
+    } else {
+      g.font = 'italic 900 84px Fraunces, Georgia, serif';
+      g.fillStyle = kind === 'win' ? '#ffd66b' : kind === 'saga' ? '#7dffd4' : '#ff7a5c';
+      g.fillText(kind === 'win' ? 'EMERGENCE' : kind === 'saga' ? 'THE SAGA' : 'REABSORBED', 560, 260);
+    }
     const lin = cachedLineage();
-    g.fillText(`${Game.myName || 'a speck'} ${lin ? '★'.repeat(Math.min(5, lin)) : ''}`, 562, 320);
+    if (kind !== 'specimen'){
+      g.font = 'italic 600 34px Fraunces, Georgia, serif';
+      g.fillStyle = '#eafff5';
+      g.fillText(`${Game.myName || 'a speck'} ${lin ? '★'.repeat(Math.min(5, lin)) : ''}`, 562, 320);
+    }
     if (Game.myMutTitle){
       g.font = 'italic 600 24px Fraunces, Georgia, serif';
       g.fillStyle = '#ffd66b';
@@ -2091,6 +2099,29 @@ $('menuRoll').addEventListener('click', () => {
 });
 $('menuName').addEventListener('change', sendIdent);
 $('menuName').addEventListener('keydown', e => { if (e.key === 'Enter') e.target.blur(); });
+$('specimenBtn').addEventListener('click', async () => {
+  const lin = cachedLineage();
+  const ep = (DYNASTY_TITLES.find(([n]) => lin >= n) || [])[1];
+  const stars = lin ? (lin > 5 ? `\u2605\u00d7${lin}` : '\u2605'.repeat(lin)) : 'unstarred';
+  const lines = [
+    `${stars} dynasty${ep ? ` \u00b7 ${ep}` : ''}`,
+    `generation ${ROMAN[(Net.me.gen || 1) - 1]} \u00b7 ${Net.me.kills || 0} kills this run`
+  ];
+  const blob = await buildShareCard('specimen', lines);
+  if (!blob) return;
+  markShared();
+  const file = new File([blob], 'souplings-specimen.png', { type: 'image/png' });
+  if (navigator.canShare && navigator.canShare({ files: [file] })){
+    try { await navigator.share({ files: [file], text: `my soupling \u2014 ${location.origin}` }); return; } catch (e) {}
+  }
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `souplings-${(Game.myName || 'specimen').replace(/\W+/g, '-')}.png`;
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 30000);
+  toast('specimen card saved \u2014 show them what you evolved', true);
+});
+
 $('sagaBtn').addEventListener('click', async () => {
   const lin = cachedLineage();
   const life = cachedLife() || { runs: 0, time: 0, dna: 0, kills: 0 };
