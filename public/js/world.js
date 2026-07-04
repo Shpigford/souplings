@@ -263,12 +263,19 @@ class World {
       ctx.save();
       ctx.translate(x, y);
       ctx.rotate(m.a + Math.PI / 2);
-      /* a soft halo so the wall reads from open water */
-      const halo = ctx.createRadialGradient(0, 0, 2, 0, 0, 34);
-      halo.addColorStop(0, 'rgba(214,196,161,0.22)');
-      halo.addColorStop(1, 'rgba(214,196,161,0)');
-      ctx.fillStyle = halo;
-      ctx.beginPath(); ctx.arc(0, 0, 34, 0, TAU); ctx.fill();
+      /* halo sprite, built once — gradients per frame were a perf hole */
+      if (!World._haloSprite){
+        const hc = document.createElement('canvas');
+        hc.width = hc.height = 72;
+        const hg = hc.getContext('2d');
+        const grad = hg.createRadialGradient(36, 36, 2, 36, 36, 34);
+        grad.addColorStop(0, 'rgba(214,196,161,0.22)');
+        grad.addColorStop(1, 'rgba(214,196,161,0)');
+        hg.fillStyle = grad;
+        hg.fillRect(0, 0, 72, 72);
+        World._haloSprite = hc;
+      }
+      ctx.drawImage(World._haloSprite, -36, -36);
       ctx.strokeStyle = 'rgba(214,196,161,0.75)';
       ctx.lineWidth = 2.4;
       ctx.beginPath();

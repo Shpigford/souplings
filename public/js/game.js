@@ -43,7 +43,8 @@ const Game = {
   playT: 0,
   inputT: 0,
   bubbleT: 0,
-  boardT: 0
+  boardT: 0,
+  dprCap: 2
 };
 
 /* ============================================================
@@ -51,7 +52,7 @@ const Game = {
    ============================================================ */
 
 function resize(){
-  DPR = Math.min(2, window.devicePixelRatio || 1);
+  DPR = Math.min(Game.dprCap || 2, window.devicePixelRatio || 1);
   W = window.innerWidth;
   H = window.innerHeight;
   canvas.width = Math.floor(W * DPR);
@@ -1945,8 +1946,16 @@ const Clips = {
     this.mime = ['video/mp4', 'video/webm;codecs=vp9', 'video/webm']
       .find(m => { try { return MediaRecorder.isTypeSupported(m); } catch (e) { return false; } });
     if (!this.mime) return;
-    try { this.stream = canvas.captureStream(24); } catch (e) { return; }
+    /* encode a 720p mirror — encoding the full retina canvas tanked fps */
+    try {
+      this.cv = document.createElement('canvas');
+      this.cv.width = 1280;
+      this.cv.height = Math.round(1280 * (canvas.height / canvas.width) / 2) * 2;
+      this.cg = this.cv.getContext('2d');
+      this.stream = this.cv.captureStream(24);
+    } catch (e) { return; }
     this.on = true;
+    this.blitT = 0;
     this.cycle(0);
     this.timers[1] = setTimeout(() => { if (this.on) this.cycle(1); }, 10000);
   },
@@ -1969,6 +1978,15 @@ const Clips = {
   /* freeze the moment the instant it happens — the death/kill lands at
      the END of the clip, and idling on the death screen can't scroll
      the window past it */
+  blit(){
+    if (!this.on) return;
+    const now = performance.now();
+    if (now - this.blitT < 40) return;   // ~24fps
+    this.blitT = now;
+    const ch = Math.round(this.cv.width * canvas.height / canvas.width / 2) * 2;
+    if (Math.abs(ch - this.cv.height) > 4) this.cv.height = ch;
+    this.cg.drawImage(canvas, 0, 0, this.cv.width, this.cv.height);
+  },
   capture(label){
     if (!this.on) return;
     let i = -1, best = -1;
@@ -2253,7 +2271,42 @@ buildEditor();
 updateConnStatus();
 Net.connect();
 
+/* perf: rolling fps, adaptive resolution, ?perf=1 overlay */
+const Perf = { frames: 0, last: performance.now(), fps: 60, slowSince: 0, el: null };
+function perfTick(){
+  Perf.frames++;
+  const now = performance.now();
+  if (now - Perf.last >= 1000){
+    Perf.fps = Perf.frames;
+    Perf.frames = 0;
+    Perf.last = now;
+    /* sustained slowness: shed resolution before anything else */
+    if (Perf.fps < 42 && Game.dprCap > 1){
+      if (!Perf.slowSince) Perf.slowSince = now;
+      if (now - Perf.slowSince > 2500){
+        Game.dprCap = Math.max(1, Game.dprCap - 0.25);
+        Perf.slowSince = 0;
+        resize();
+      }
+    } else Perf.slowSince = 0;
+    if (Perf.el){
+      Perf.el.textContent =
+        `${Perf.fps} fps \u00b7 dpr ${DPR.toFixed(2)} \u00b7 cells ${Game.world ? Game.world.cells.length : 0}` +
+        ` \u00b7 food ${Game.world ? Game.world.food.length : 0}` +
+        ` \u00b7 pts ${Game.world ? Game.world.particles.length : 0}` +
+        ` \u00b7 shore ${Game.shore ? Game.shore.list.length : 0} \u00b7 clips ${Clips.on ? 'on' : 'off'}`;
+    }
+  }
+}
+if (location.search.indexOf('perf') >= 0){
+  Perf.el = document.createElement('div');
+  Perf.el.style.cssText = 'position:fixed;left:8px;top:8px;z-index:99;font:11px monospace;color:#7dffd4;background:rgba(4,18,29,.8);padding:4px 8px;border-radius:6px';
+  document.body.appendChild(Perf.el);
+}
+
 function frame(ts){
+  perfTick();
+  Clips.blit();
   if (Game.last === null) Game.last = ts;
   const dt = Math.min(0.05, (ts - Game.last) / 1000);
   Game.last = ts;
