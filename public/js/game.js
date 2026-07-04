@@ -172,7 +172,7 @@ Net.onDead = m => {
       [L.dna, 'DNA'],
       [L.kills, 'kills']
     ]) : '') +
-    `<span class="dim mono">your bests — ${fmtTime(b.survived || 0)} · gen ${ROMAN[(b.gen || 1) - 1]} · ${b.kills || 0} kills</span>` +
+    `<span class="dim mono">your bests — ${fmtTime(b.survived || 0)} · gen ${ROMAN[(b.gen || 1) - 1]} · ${b.kills || 0} kills · \u{1F3C6} ${Object.keys(achHave()).length}/${ACH.length}</span>` +
     (newBest ? '<span class="bestBadge">new best</span>' : '');
   ui.death.classList.remove('hidden');
   ui.continueBtn.focus();
@@ -310,6 +310,8 @@ function updateTitleDynasty(){
   let stk = 0;
   try { stk = +localStorage.getItem('soup_streak') || 0; } catch (e) {}
   if (stk > 1) line += ` · ${stk}-day streak`;
+  const tn = Object.keys(achHave()).length;
+  if (tn) line += ` · \u{1F3C6} ${tn}/${ACH.length}`;
   el.textContent = line;
   el.classList.remove('hidden');
   ui.beginBtn.textContent = Game.calledBy ? 'Answer the call' : lin ? 'Rejoin the soup' : 'Begin as a speck';
@@ -350,36 +352,39 @@ function updateChronicle(){
     ui.chronicle.classList.remove('hidden');
     return;
   }
-  let html = `<div class="chronTitle">the chronicle</div>`;
+  let html = `<div class="chronTitle">the chronicle</div><div class="chronGrid">`;
+  if (w.tide){
+    html += `<div class="cCard"><div class="cLbl">\u{1F30A} today's tide \u00b7 ${w.tide.n}</div>` +
+      `<div class="cBig">${w.tide.name}</div><div class="cSub">${w.tide.desc}</div></div>`;
+  }
   if (w.order){
     const o = w.order;
     const pct = Math.min(100, Math.round(o.n / o.target * 100));
-    html += `<div class="orderBox">` +
-      `<div class="orderHead"><span>tide order</span><span>${o.done ? 'complete' : `ends in ${o.daysLeft} day${o.daysLeft === 1 ? '' : 's'}`}</span></div>` +
-      `<div class="orderText">${o.done ? `the soup prevailed \u2014 ${o.label}` : `${o.label} \u00b7 ${o.n}/${o.target} ${o.unit}`}</div>` +
-      `<div class="orderBar"><i style="width:${pct}%"></i></div></div>`;
+    html += `<div class="cCard gold"><div class="cLbl">tide order \u00b7 ${o.done ? 'complete' : `${o.daysLeft}d left`}</div>` +
+      `<div class="cBig">${o.done ? 'the soup prevailed' : o.label}</div>` +
+      `<div class="orderBar"><i style="width:${pct}%"></i></div>` +
+      `<div class="cSub">${o.n}/${o.target} ${o.unit}</div></div>`;
   }
-  if (w.tide) html += `<div class="tideLine">\u{1F30A} tide ${w.tide.n} \u00b7 <b>${w.tide.name}</b> \u2014 ${w.tide.desc}</div>`;
-  html += `<div class="counts">${w.online} adrift · ${w.joins} lived · ${w.ashore} ashore · ${w.deaths} reabsorbed${w.pvp ? ` · ${w.pvp} eaten` : ''}</div>`;
   const recs = [];
-  if (w.fastest) recs.push(['fastest', `${fmtTime(w.fastest.s)} · ${esc(w.fastest.name)}`]);
-  if (w.deadliest && w.deadliest.n > 0) recs.push(['deadliest', `${w.deadliest.n} kills · ${esc(w.deadliest.name)}`]);
-  if (w.dynasty && w.dynasty.n > 1) recs.push(['dynasty', `★${w.dynasty.n} · ${esc(w.dynasty.name)}`]);
+  if (w.fastest) recs.push(['fastest', `${fmtTime(w.fastest.s)} \u00b7 ${esc(w.fastest.name)}`]);
+  if (w.deadliest && w.deadliest.n > 0) recs.push(['deadliest', `${w.deadliest.n} kills \u00b7 ${esc(w.deadliest.name)}`]);
+  if (w.dynasty && w.dynasty.n > 1) recs.push(['dynasty', `\u2605${w.dynasty.n} \u00b7 ${esc(w.dynasty.name)}`]);
   if (recs.length){
-    html += `<div class="recGrid">` +
-      recs.map(([l, v]) => `<span class="lbl">${l}</span><span class="val">${v}</span>`).join('') +
-      `</div>`;
+    html += `<div class="cCard"><div class="cLbl">\u{1F3C6} all-time records</div><div class="recGrid">` +
+      recs.map(([l, v]) => `<span class="lbl">${l}</span><span class="val">${v}</span>`).join('') + `</div></div>`;
   }
   if (w.daily && (w.daily.ashore || w.daily.deaths)){
-    html += `<span class="today">today's tide · ${w.daily.ashore} emerged · ${w.daily.deaths} lost</span>`;
     const top = (w.daily.top || []).slice(0, 5);
+    const meName = Game.myName || savedName();
+    html += `<div class="cCard"><div class="cLbl">\u23F1 today's race \u00b7 ${w.daily.ashore} emerged \u00b7 ${w.daily.deaths} lost</div>`;
     if (top.length){
-      const meName = Game.myName || savedName();
-      html += `<div class="todayBoard">` + top.map((r, i) =>
-        `<span class="tbR">${i + 1}</span><span class="tbT">${fmtTime(r.s)}</span>` +
-        `<span class="tbN${r.name === meName ? ' me' : ''}">${esc(r.name)}</span>`).join('') + `</div>`;
-    }
+      html += `<div class="todayBoard">` + top.map((r2, i2) =>
+        `<span class="tbR">${i2 + 1}</span><span class="tbT">${fmtTime(r2.s)}</span>` +
+        `<span class="tbN${r2.name === meName ? ' me' : ''}">${esc(r2.name)}</span>`).join('') + `</div>`;
+    } else html += `<div class="cSub">nobody ashore yet \u2014 the shore waits</div>`;
+    html += `</div>`;
   }
+  html += `</div><div class="counts">${w.online} adrift \u00b7 ${w.joins} lived \u00b7 ${w.ashore} ashore \u00b7 ${w.deaths} reabsorbed${w.pvp ? ` \u00b7 ${w.pvp} eaten` : ''}</div>`;
   ui.chronicle.innerHTML = html;
   ui.chronicle.classList.remove('hidden');
   const mc = $('menuChronicle');
@@ -2195,7 +2200,8 @@ $('specimenBtn').addEventListener('click', async () => {
   const stars = lin ? (lin > 5 ? `\u2605\u00d7${lin}` : '\u2605'.repeat(lin)) : 'unstarred';
   const lines = [
     `${stars} dynasty${ep ? ` \u00b7 ${ep}` : ''}`,
-    `generation ${ROMAN[(Net.me.gen || 1) - 1]} \u00b7 ${Net.me.kills || 0} kills this run`
+    `generation ${ROMAN[(Net.me.gen || 1) - 1]} \u00b7 ${Net.me.kills || 0} kills this run`,
+    `\u{1F3C6} ${Object.keys(achHave()).length}/${ACH.length} trophies`
   ];
   const blob = await buildShareCard('specimen', lines);
   if (!blob) return;

@@ -1024,6 +1024,40 @@ button.danger:hover{ box-shadow:0 0 16px rgba(255,122,92,.25); }
   color:var(--mint-dim);
   margin-bottom:.55rem;
 }
+#chronicle .chronGrid, #menuChronicle .chronGrid{
+  display:grid;
+  grid-template-columns:1fr 1fr;
+  gap:.55rem;
+  text-align:left;
+  margin-bottom:.6rem;
+}
+#chronicle .cCard, #menuChronicle .cCard{
+  border:1px solid rgba(125,255,212,.14);
+  border-radius:12px 8px 12px 8px;
+  padding:.55rem .75rem;
+  background:rgba(125,255,212,.035);
+}
+#chronicle .cCard.gold, #menuChronicle .cCard.gold{
+  border-color:rgba(255,199,90,.3);
+  background:rgba(255,199,90,.05);
+}
+#chronicle .cLbl, #menuChronicle .cLbl{
+  font-size:.54rem; letter-spacing:.2em; text-transform:uppercase;
+  color:var(--mint-dim); margin-bottom:.35rem;
+}
+#chronicle .cCard.gold .cLbl, #menuChronicle .cCard.gold .cLbl{ color:rgba(255,199,90,.75); }
+#chronicle .cBig, #menuChronicle .cBig{
+  font-family:var(--font-disp);
+  font-style:italic; font-weight:700;
+  font-size:.95rem; color:var(--ink);
+  letter-spacing:0;
+  margin-bottom:.25rem;
+}
+#chronicle .cCard.gold .cBig, #menuChronicle .cCard.gold .cBig{ color:var(--gold); }
+#chronicle .cSub, #menuChronicle .cSub{ font-size:.6rem; color:rgba(234,255,245,.55); line-height:1.5; }
+@media (max-width:760px){
+  #chronicle .chronGrid, #menuChronicle .chronGrid{ grid-template-columns:1fr; }
+}
 #chronicle .orderBox, #menuChronicle .orderBox{
   margin-bottom:.7rem;
   padding:.5rem .7rem .6rem;
@@ -1059,8 +1093,8 @@ button.danger:hover{ box-shadow:0 0 16px rgba(255,122,92,.25); }
 #chronicle .recGrid, #menuChronicle .recGrid{
   display:grid;
   grid-template-columns:auto auto;
-  gap:.15rem 1.1rem;
-  justify-content:center;
+  gap:.15rem .8rem;
+  justify-content:start;
   text-align:left;
 }
 #chronicle .recGrid .lbl, #menuChronicle .recGrid .lbl{ color:var(--mint-dim); text-align:right; }
@@ -1068,8 +1102,8 @@ button.danger:hover{ box-shadow:0 0 16px rgba(255,122,92,.25); }
 #chronicle .todayBoard, #menuChronicle .todayBoard{
   display:grid;
   grid-template-columns:auto auto auto;
-  gap:.15rem .8rem;
-  justify-content:center;
+  gap:.15rem .7rem;
+  justify-content:start;
   text-align:left;
   margin-top:.45rem;
 }
